@@ -1,7 +1,10 @@
 {
+  // Disable schema validation to avoid network issues
+  "$schema": "http://json-schema.org/draft-07/schema#",
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
+    "forceConsistentCasingInFileNames": true,
     "paths": {
       "@/*": [
         "./*"

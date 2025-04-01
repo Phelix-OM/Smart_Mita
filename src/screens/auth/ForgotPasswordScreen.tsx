@@ -15,7 +15,7 @@ export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [emailError, setEmailError] = useState("")
-  const [isSubmitted, setIsSubmitted] = useState(isSubmitted)
+  const [isSubmitted, setIsSubmitted] = useState(false)
 
   const validateForm = () => {
     let isValid = true

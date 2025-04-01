@@ -31,6 +31,7 @@ export default function AuthStack() {
         component={UtilityConnectionScreen}
         options={{ title: t("connectUtility") }}
       />
+      
     </Stack.Navigator>
   )
 }

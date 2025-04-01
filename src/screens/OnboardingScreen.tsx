@@ -1,18 +1,20 @@
 "use client"
 
 import { useState, useRef } from "react"
-import { View, Text, StyleSheet, FlatList, Dimensions, TouchableOpacity, Image } from "react-native"
+import { View, Text, StyleSheet, FlatList, Dimensions, TouchableOpacity, Image, Platform } from "react-native"
 import { useAuth } from "../contexts/AuthContext"
 import { useTranslation } from "../hooks/useTranslation"
 import { useTheme } from "../contexts/ThemeContext"
 import { SafeAreaView } from "react-native-safe-area-context"
+import { useResponsive } from "../hooks/useResponsive"
 
-const { width } = Dimensions.get("window")
+const { width, height } = Dimensions.get("window")
 
 export default function OnboardingScreen() {
   const { completeOnboarding } = useAuth()
   const { t } = useTranslation()
   const { colors } = useTheme()
+  const { spacing } = useResponsive()
   const [currentIndex, setCurrentIndex] = useState(0)
   const flatListRef = useRef<FlatList>(null)
 
@@ -54,10 +56,14 @@ export default function OnboardingScreen() {
 
   const renderItem = ({ item }: { item: (typeof onboardingData)[0] }) => {
     return (
-      <View style={[styles.slide, { backgroundColor: colors.background }]}>
-        <Image source={item.image} style={styles.image} resizeMode="contain" />
-        <Text style={[styles.title, { color: colors.text }]}>{item.title}</Text>
-        <Text style={[styles.description, { color: colors.text }]}>{item.description}</Text>
+      <View style={[styles.slide, { backgroundColor: colors.background, width }]}>
+        <View style={styles.imageContainer}>
+          <Image source={item.image} style={styles.image} resizeMode="contain" />
+        </View>
+        <View style={styles.contentContainer}>
+          <Text style={[styles.title, { color: colors.text }]}>{item.title}</Text>
+          <Text style={[styles.description, { color: colors.textSecondary }]}>{item.description}</Text>
+        </View>
       </View>
     )
   }
@@ -107,8 +113,21 @@ export default function OnboardingScreen() {
 
       {renderDots()}
 
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity style={[styles.button, { backgroundColor: colors.primary }]} onPress={handleNext}>
+      <View style={[styles.buttonContainer, { marginBottom: Platform.OS === "ios" ? spacing(6) : spacing(4) }]}>
+        <TouchableOpacity
+          style={[
+            styles.button,
+            {
+              backgroundColor: colors.primary,
+              shadowColor: colors.primary,
+              shadowOpacity: 0.3,
+              shadowOffset: { width: 0, height: 4 },
+              shadowRadius: 8,
+              elevation: 5,
+            },
+          ]}
+          onPress={handleNext}
+        >
           <Text style={[styles.buttonText, { color: colors.white }]}>
             {currentIndex === onboardingData.length - 1 ? t("getStarted") : t("next")}
           </Text>
@@ -125,33 +144,62 @@ const styles = StyleSheet.create({
   skipContainer: {
     alignItems: "flex-end",
     padding: 16,
+    paddingHorizontal: 24,
   },
   skipText: {
     fontSize: 16,
     fontFamily: "Poppins-Medium",
   },
   slide: {
-    width,
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    padding: 20,
+  },
+  imageContainer: {
+    flex: 0.6,
+    width: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingTop: 20,
   },
   image: {
-    width: width * 0.8,
-    height: width * 0.8,
-    marginBottom: 40,
+    width: width * 0.85,
+    height: height * 0.4,
+    maxHeight: 400,
+    borderRadius: 20,
+    // Add a subtle shadow to make images pop
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+      },
+      android: {
+        elevation: 3,
+      },
+    }),
+  },
+  contentContainer: {
+    flex: 0.4,
+    justifyContent: "flex-start",
+    alignItems: "center",
+    paddingHorizontal: 30,
+    width: "100%",
   },
   title: {
-    fontSize: 24,
+    fontSize: 28,
     fontFamily: "Poppins-Bold",
     textAlign: "center",
     marginBottom: 16,
+    letterSpacing: 0.5,
   },
   description: {
     fontSize: 16,
     fontFamily: "Poppins-Regular",
     textAlign: "center",
-    paddingHorizontal: 20,
+    lineHeight: 24,
+    paddingHorizontal: 10,
   },
   dotsContainer: {
     flexDirection: "row",
@@ -164,17 +212,18 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
   },
   buttonContainer: {
-    padding: 20,
-    marginBottom: 20,
+    paddingHorizontal: 30,
+    width: "100%",
   },
   button: {
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 16,
     alignItems: "center",
   },
   buttonText: {
     fontSize: 18,
-    fontFamily: "Poppins-Medium",
+    fontFamily: "Poppins-SemiBold",
+    letterSpacing: 0.5,
   },
 })
 

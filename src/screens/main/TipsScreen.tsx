@@ -20,7 +20,7 @@ interface Tip {
   savings: string
   difficulty: "easy" | "medium" | "hard"
   isFavorite?: boolean
-  image?: string
+  imageUrl?: string
 }
 
 export default function TipsScreen() {
@@ -45,7 +45,24 @@ export default function TipsScreen() {
     { key: "seasonal", label: "Seasonal", icon: "calendar-outline" },
   ]
 
-  // Mock data for energy-saving tips
+  // Default placeholder image for tips
+  const defaultPlaceholderImage = "https://media.istockphoto.com/id/1439843828/photo/close-up-photo-of-lightbulb-with-growing-plant-inside-and-coin-stacks-as-a-symbol-of-money.jpg?s=612x612&w=0&k=20&c=5y97BclN5WVA-A9zgNXtwiZYns95rML0-aOK_VB5aLE="
+
+  // Category-specific placeholder images
+  const categoryPlaceholders = {
+    appliances: "https://media.istockphoto.com/id/2037146628/photo/modern-simple-small-kitchen-corner-in-the-grey-and-white-kitchen-kitchen.jpg?s=612x612&w=0&k=20&c=5cndnH5TyASWJNN_a9MILOS5hdq5ak3wOz6PY2mLyWI=",
+    cooling: "https://media.istockphoto.com/id/1368514998/photo/hand-adjusting-temperature-on-air-conditioner.jpg?s=612x612&w=0&k=20&c=sx_08JADhXZFKFadmJE9vfjF43C5ru5X96YPHLo-EPE=",
+    lighting: "https://media.istockphoto.com/id/1934009962/photo/a-young-woman-is-changing-a-light-bulb-from-an-incandescent-bulb-to-an-led-bulb.jpg?s=612x612&w=0&k=20&c=k-_RQk6SnZZSpb8FKCDr_vjumt_-_JTNmFDdzoyqQ60=",
+    standby: "https://media.istockphoto.com/id/111857959/photo/womans-hand-pulling-two-electrical-cords-plugs-from-socket.jpg?s=612x612&w=0&k=20&c=QbNGrtUXjWBVKd3OWAau0oRpip94tUXydIaQpHW0wdg=",
+    seasonal: "https://media.istockphoto.com/id/2140183630/photo/repairman-using-a-screwdriver-disassembles-a-washing-machine-for-repair.jpg?s=612x612&w=0&k=20&c=vpLsKVsKm8LEUIBknDNzyrB8jQQHVL2Ib8oG72ymazM=",
+  }
+
+  // Get placeholder image based on category
+  const getPlaceholderImage = (category: TipCategory): string => {
+    if (category === "all") return defaultPlaceholderImage
+    return categoryPlaceholders[category] || defaultPlaceholderImage
+  }
+
   const allTips: Tip[] = [
     {
       id: "1",
@@ -56,7 +73,7 @@ export default function TipsScreen() {
       icon: "snow-outline",
       savings: "Up to 15% on cooling costs",
       difficulty: "easy",
-      image: "/placeholder.svg?height=200&width=300",
+      imageUrl: getPlaceholderImage("cooling"),
     },
     {
       id: "2",
@@ -67,7 +84,7 @@ export default function TipsScreen() {
       icon: "bulb-outline",
       savings: "Up to 80% on lighting costs",
       difficulty: "medium",
-      image: "/placeholder.svg?height=200&width=300",
+      imageUrl: getPlaceholderImage("lighting"),
     },
     {
       id: "3",
@@ -78,7 +95,7 @@ export default function TipsScreen() {
       icon: "power-outline",
       savings: "5-10% on electricity bill",
       difficulty: "easy",
-      image: "/placeholder.svg?height=200&width=300",
+      imageUrl: getPlaceholderImage("standby"),
     },
     {
       id: "4",
@@ -89,7 +106,7 @@ export default function TipsScreen() {
       icon: "thermometer-outline",
       savings: "Up to 15% on refrigeration costs",
       difficulty: "medium",
-      image: "/placeholder.svg?height=200&width=300",
+      imageUrl: getPlaceholderImage("appliances"),
     },
     {
       id: "5",
@@ -100,7 +117,7 @@ export default function TipsScreen() {
       icon: "water-outline",
       savings: "Up to 90% on laundry energy costs",
       difficulty: "easy",
-      image: "/placeholder.svg?height=200&width=300",
+      imageUrl: getPlaceholderImage("appliances"),
     },
     {
       id: "6",
@@ -111,7 +128,7 @@ export default function TipsScreen() {
       icon: "repeat-outline",
       savings: "Up to 40% on cooling costs",
       difficulty: "hard",
-      image: "/placeholder.svg?height=200&width=300",
+      imageUrl: getPlaceholderImage("cooling"),
     },
     {
       id: "7",
@@ -122,7 +139,7 @@ export default function TipsScreen() {
       icon: "sunny-outline",
       savings: "10-25% on lighting costs",
       difficulty: "easy",
-      image: "/placeholder.svg?height=200&width=300",
+      imageUrl: getPlaceholderImage("lighting"),
     },
     {
       id: "8",
@@ -133,7 +150,7 @@ export default function TipsScreen() {
       icon: "calendar-outline",
       savings: "Up to 20% on heating/cooling costs",
       difficulty: "medium",
-      image: "/placeholder.svg?height=200&width=300",
+      imageUrl: getPlaceholderImage("seasonal"),
     },
     {
       id: "9",
@@ -144,7 +161,7 @@ export default function TipsScreen() {
       icon: "flash-outline",
       savings: "Up to 12% on electricity bill",
       difficulty: "easy",
-      image: "/placeholder.svg?height=200&width=300",
+      imageUrl: getPlaceholderImage("standby"),
     },
     {
       id: "10",
@@ -155,7 +172,7 @@ export default function TipsScreen() {
       icon: "water-outline",
       savings: "7-15% on water heating costs",
       difficulty: "medium",
-      image: "/placeholder.svg?height=200&width=300",
+      imageUrl: getPlaceholderImage("appliances"),
     },
   ]
 
@@ -189,6 +206,12 @@ export default function TipsScreen() {
   }
 
   const filteredTips = selectedCategory === "all" ? tips : tips.filter((tip) => tip.category === selectedCategory)
+
+  // Function to handle image loading errors
+  const handleImageError = (tipId: string) => {
+    console.warn(`Failed to load image for tip ${tipId}, using fallback`)
+    // You could update the tip's image to a local fallback here if needed
+  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
@@ -357,7 +380,14 @@ export default function TipsScreen() {
                 </TouchableOpacity>
               </View>
 
-              {tip.image && <Image source={{ uri: tip.image }} style={styles.tipImage} resizeMode="cover" />}
+              {tip.imageUrl && (
+                <Image
+                  source={{ uri: tip.imageUrl }}
+                  style={styles.tipImage}
+                  resizeMode="cover"
+                  onError={() => handleImageError(tip.id)}
+                />
+              )}
 
               <Text style={[styles.tipDescription, { color: colors.text, fontSize: scaledFontSize(14) }]}>
                 {tip.description}
@@ -530,6 +560,7 @@ const styles = StyleSheet.create({
     height: 150,
     borderRadius: 8,
     marginBottom: 12,
+    backgroundColor: "#F0F0F0", // Light background while loading
   },
   tipDescription: {
     fontFamily: "Poppins-Regular",

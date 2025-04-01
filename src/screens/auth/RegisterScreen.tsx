@@ -114,7 +114,7 @@ export default function RegisterScreen() {
       >
         <View style={styles.logoContainer}>
           <Image
-            source={require("../../../assets/images/logo.png")}
+            source={require("@/assets/images/logo.png")}
             style={[
               styles.logo,
               {

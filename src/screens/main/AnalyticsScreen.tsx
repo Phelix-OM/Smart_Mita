@@ -1,7 +1,15 @@
-"use client"
 
-import { useState } from "react"
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from "react-native"
+import { useState, useRef, useEffect } from "react"
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  RefreshControl,
+  Animated,
+  Dimensions,
+} from "react-native"
 import { useTranslation } from "../../hooks/useTranslation"
 import { useTheme } from "../../contexts/ThemeContext"
 import { useUtility } from "../../contexts/UtilityContext"
@@ -10,6 +18,35 @@ import { useResponsive } from "../../hooks/useResponsive"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { LineChart, BarChart, PieChart } from "react-native-chart-kit"
 import { TimeRangeSelector } from "../../components/ui/TimeRangeSelector"
+import { Gesture, GestureDetector, GestureHandlerRootView } from "react-native-gesture-handler"
+
+// Add these type definitions at the top of the file, after the existing imports
+interface TooltipPosition {
+  x: number
+  y: number
+  visible: boolean
+  value: number
+  label: string
+}
+
+interface ChartProps {
+  data: any
+  width: number
+  height: number
+}
+
+interface LineChartProps extends ChartProps {
+  yAxisSuffix: string
+}
+
+interface BarChartProps extends ChartProps {
+  yAxisSuffix: string
+  showValuesOnTopOfBars?: boolean
+}
+
+interface PieChartProps extends ChartProps {
+  // Additional pie chart specific props can be added here
+}
 
 type TimeRange = "day" | "week" | "month" | "year"
 type AnalyticsTab = "overview" | "comparison" | "devices" | "cost"
@@ -19,11 +56,32 @@ export default function AnalyticsScreen() {
   const { colors, isDarkMode } = useTheme()
   const { energyData, deviceUsage, refreshEnergyData } = useUtility()
   const { scaledFontSize, spacing, isSmallScreen, dimensions } = useResponsive()
+  const screenWidth = Dimensions.get("window").width
 
   const [selectedTimeRange, setSelectedTimeRange] = useState<TimeRange>("month")
   const [activeTab, setActiveTab] = useState<AnalyticsTab>("overview")
   const [isLoading, setIsLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+
+  // Chart interaction states
+  const [tooltipPos, setTooltipPos] = useState<TooltipPosition>({
+    x: 0,
+    y: 0,
+    visible: false,
+    value: 0,
+    label: "",
+  })
+  const [activeSlice, setActiveSlice] = useState<number | null>(null)
+  const scaleAnimation = useRef(new Animated.Value(1)).current
+
+  // Ref to track if component is mounted
+  const isMounted = useRef(true)
+
+  useEffect(() => {
+    return () => {
+      isMounted.current = false
+    }
+  }, [])
 
   const onRefresh = async () => {
     setRefreshing(true)
@@ -32,7 +90,9 @@ export default function AnalyticsScreen() {
     } catch (error) {
       console.error("Failed to refresh data:", error)
     } finally {
-      setRefreshing(false)
+      if (isMounted.current) {
+        setRefreshing(false)
+      }
     }
   }
 
@@ -129,24 +189,78 @@ export default function AnalyticsScreen() {
     ],
   }
 
-  // Chart configuration
+  // Enhanced chart configuration with animations and interactions
   const chartConfig = {
     backgroundGradientFrom: colors.card,
     backgroundGradientTo: colors.card,
     decimalPlaces: 1,
-    color: () => colors.primary,
+    color: (opacity = 1) => colors.primary,
     labelColor: () => colors.text,
     style: {
       borderRadius: 16,
     },
     propsForDots: {
-      r: "5",
+      r: "6",
       strokeWidth: "2",
       stroke: colors.primary,
+      fill: colors.card,
     },
     propsForBackgroundLines: {
       stroke: isDarkMode ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.05)",
+      strokeDasharray: "5, 5",
     },
+    propsForLabels: {
+      fontFamily: "Poppins-Medium",
+      fontSize: isSmallScreen ? 10 : 12, // Smaller font on small screens
+      fill: colors.text,
+    },
+    propsForYLabels: {
+      fontSize: isSmallScreen ? 10 : 12,
+      fill: colors.text,
+      fontWeight: "bold",
+    },
+    fillShadowGradientFrom: colors.primary,
+    fillShadowGradientTo: `${colors.primary}00`,
+    useShadowColorFromDataset: false,
+    // Increase left padding to prevent y-axis label truncation
+    paddingLeft: isSmallScreen ? 50 : 40,
+    paddingRight: 20,
+    paddingTop: 20,
+    paddingBottom: 20,
+  }
+
+  // Handle chart touch for tooltip
+  const handleChartTouch = (x: number, y: number, dataPoint: number, index: number, label: string): void => {
+    if (isMounted.current) {
+      setTooltipPos({
+        x,
+        y,
+        visible: true,
+        value: dataPoint,
+        label,
+      })
+    }
+  }
+
+  // Handle pie chart slice press
+  const handlePieSlicePress = (index: number): void => {
+    if (isMounted.current) {
+      setActiveSlice(index === activeSlice ? null : index)
+
+      // Animate the slice
+      Animated.sequence([
+        Animated.timing(scaleAnimation, {
+          toValue: 1.1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnimation, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start()
+    }
   }
 
   // Tabs configuration
@@ -157,13 +271,259 @@ export default function AnalyticsScreen() {
     { key: "cost", title: "Cost", icon: "cash-outline" },
   ]
 
+  // Enhanced line chart with tooltip
+  const EnhancedLineChart = ({ data, width, height, yAxisSuffix }: LineChartProps): JSX.Element => {
+    // Calculate chart area dimensions
+    const chartAreaWidth = width - (chartConfig.paddingLeft + chartConfig.paddingRight)
+    const chartAreaHeight = height - (chartConfig.paddingTop + chartConfig.paddingBottom)
+
+    // Calculate data point positions
+    const dataLength = data.labels.length
+    const segmentWidth = chartAreaWidth / (dataLength - 1)
+    const maxDataValue = Math.max(...data.datasets[0].data)
+
+    // Create tap gesture handler
+    const tapGesture = Gesture.Tap().onStart((e) => {
+      // Calculate which data point was tapped
+      const relativeX = e.x - chartConfig.paddingLeft
+      const index = Math.min(Math.max(Math.round(relativeX / segmentWidth), 0), dataLength - 1)
+
+      if (index >= 0 && index < dataLength) {
+        const dataPoint = data.datasets[0].data[index]
+        const x = index * segmentWidth + chartConfig.paddingLeft
+        const y = chartConfig.paddingTop + chartAreaHeight - (dataPoint / maxDataValue) * chartAreaHeight
+
+        handleChartTouch(x, y, dataPoint, index, data.labels[index])
+      }
+    })
+
+    // Create pan gesture handler
+    const panGesture = Gesture.Pan()
+      .onUpdate((e) => {
+        const relativeX = e.x - chartConfig.paddingLeft
+        const index = Math.min(Math.max(Math.floor(relativeX / segmentWidth), 0), dataLength - 1)
+
+        if (index >= 0 && index < dataLength) {
+          const dataPoint = data.datasets[0].data[index]
+          const x = index * segmentWidth + chartConfig.paddingLeft
+          const y = chartConfig.paddingTop + chartAreaHeight - (dataPoint / maxDataValue) * chartAreaHeight
+
+          handleChartTouch(x, y, dataPoint, index, data.labels[index])
+        }
+      })
+      .onEnd(() => {
+        // Keep tooltip visible for a moment before hiding
+        setTimeout(() => {
+          if (isMounted.current) {
+            setTooltipPos((prev) => ({ ...prev, visible: false }))
+          }
+        }, 2000)
+      })
+
+    // Combine gestures
+    const combinedGestures = Gesture.Exclusive(tapGesture, panGesture)
+
+    return (
+      <GestureHandlerRootView style={{ width, height }}>
+        <GestureDetector gesture={combinedGestures}>
+          <View>
+            <LineChart
+              data={data}
+              width={width}
+              height={height}
+              chartConfig={{
+                ...chartConfig,
+                fillShadowGradientOpacity: 0.6,
+              }}
+              bezier
+              style={styles.chart}
+              yAxisSuffix={yAxisSuffix}
+              withInnerLines={true}
+              withOuterLines={true}
+              withVerticalLines={false}
+              withHorizontalLabels={true}
+              withVerticalLabels={true}
+              withDots={true}
+              segments={5}
+              formatYLabel={(value) => {
+                // Format y-axis labels to prevent truncation
+                const num = Number.parseFloat(value)
+                if (num >= 1000) {
+                  return `${(num / 1000).toFixed(1)}k`
+                }
+                return value
+              }}
+              // Increase left padding for y-axis labels
+              fromZero={true}
+              yAxisInterval={1}
+            />
+
+            {tooltipPos.visible && (
+              <View
+                style={[
+                  styles.tooltip,
+                  {
+                    left: tooltipPos.x - 50,
+                    top: tooltipPos.y - 60,
+                    backgroundColor: colors.card,
+                    borderColor: colors.primary,
+                  },
+                ]}
+              >
+                <Text style={[styles.tooltipLabel, { color: colors.text }]}>{tooltipPos.label}</Text>
+                <Text style={[styles.tooltipValue, { color: colors.primary }]}>{tooltipPos.value.toFixed(1)} kWh</Text>
+              </View>
+            )}
+          </View>
+        </GestureDetector>
+      </GestureHandlerRootView>
+    )
+  }
+
+  // Enhanced bar chart with animations and touch interaction
+  const EnhancedBarChart = ({
+    data,
+    width,
+    height,
+    yAxisSuffix,
+    showValuesOnTopOfBars = false,
+  }: BarChartProps): JSX.Element => {
+    // Calculate chart area dimensions
+    const chartAreaWidth = width - (chartConfig.paddingLeft + chartConfig.paddingRight)
+    const dataLength = data.labels.length
+    const barWidth = (chartAreaWidth / dataLength) * 0.7 // 70% of available space per bar
+
+    // Create tap gesture handler for bar chart
+    const tapGesture = Gesture.Tap().onStart((e) => {
+      const relativeX = e.x - chartConfig.paddingLeft
+      const index = Math.min(Math.max(Math.floor(relativeX / (chartAreaWidth / dataLength)), 0), dataLength - 1)
+
+      if (index >= 0 && index < dataLength) {
+        const dataPoint = data.datasets[0].data[index]
+        const x = index * (chartAreaWidth / dataLength) + chartAreaWidth / dataLength / 2 + chartConfig.paddingLeft
+        const y = height / 2
+
+        handleChartTouch(x, y, dataPoint, index, data.labels[index])
+      }
+    })
+
+    return (
+      <GestureHandlerRootView style={{ width, height }}>
+        <GestureDetector gesture={tapGesture}>
+          <View>
+            <BarChart
+              data={data}
+              width={width}
+              height={height}
+              chartConfig={{
+                ...chartConfig,
+                barPercentage: 0.7,
+                barRadius: 6,
+                color: (opacity = 1, index = 0) => {
+                  const barColors = [colors.primary, colors.secondary, colors.tertiary]
+                  return barColors[index % barColors.length] || barColors[0]
+                },
+              }}
+              style={styles.chart}
+              yAxisSuffix={yAxisSuffix}
+              yAxisLabel=""
+              fromZero
+              showValuesOnTopOfBars={showValuesOnTopOfBars}
+              withInnerLines={true}
+              segments={5}
+              flatColor={true}
+              formatYLabel={(value) => {
+                // Format y-axis labels to prevent truncation
+                const num = Number.parseFloat(value)
+                if (num >= 1000) {
+                  return `${(num / 1000).toFixed(1)}k`
+                }
+                return value
+              }}
+            />
+
+            {tooltipPos.visible && (
+              <View
+                style={[
+                  styles.tooltip,
+                  {
+                    left: tooltipPos.x - 50,
+                    top: tooltipPos.y - 60,
+                    backgroundColor: colors.card,
+                    borderColor: colors.primary,
+                  },
+                ]}
+              >
+                <Text style={[styles.tooltipLabel, { color: colors.text }]}>{tooltipPos.label}</Text>
+                <Text style={[styles.tooltipValue, { color: colors.primary }]}>
+                  {tooltipPos.value.toFixed(1)} {yAxisSuffix}
+                </Text>
+              </View>
+            )}
+          </View>
+        </GestureDetector>
+      </GestureHandlerRootView>
+    )
+  }
+
+  // Enhanced pie chart with interactive slices
+  const EnhancedPieChart = ({ data, width, height }: PieChartProps): JSX.Element => {
+    return (
+      <View style={{ width, height }}>
+        <PieChart
+          data={data.map((item: any, index: number) => ({
+            ...item,
+            onPress: () => handlePieSlicePress(index),
+            strokeWidth: activeSlice === index ? 3 : 0,
+            stroke: activeSlice === index ? "#fff" : "transparent",
+          }))}
+          width={width}
+          height={height}
+          chartConfig={chartConfig}
+          accessor="percentage"
+          backgroundColor="transparent"
+          paddingLeft="15"
+          absolute
+          hasLegend={true}
+          center={[width / 4, 0]}
+          avoidFalseZero
+        />
+
+        {activeSlice !== null && (
+          <View
+            style={[
+              styles.pieTooltip,
+              {
+                backgroundColor: colors.card,
+                borderColor: data[activeSlice].color,
+              },
+            ]}
+          >
+            <Text style={[styles.pieTooltipTitle, { color: colors.text }]}>{data[activeSlice].name}</Text>
+            <Text style={[styles.pieTooltipValue, { color: data[activeSlice].color }]}>
+              {data[activeSlice].usage} {data[activeSlice].unit || "kWh"} ({data[activeSlice].percentage}%)
+            </Text>
+          </View>
+        )}
+      </View>
+    )
+  }
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: colors.text, fontSize: scaledFontSize(24) }]}>Analytics</Text>
       </View>
 
-      <View style={[styles.tabsContainer, { backgroundColor: colors.background }]}>
+      <View
+        style={[
+          styles.tabsContainer,
+          {
+            backgroundColor: colors.background,
+            borderBottomColor: isDarkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)",
+          },
+        ]}
+      >
         {tabs.map((tab) => (
           <TouchableOpacity
             key={tab.key}
@@ -208,7 +568,7 @@ export default function AnalyticsScreen() {
 
         {activeTab === "overview" && (
           <View style={styles.section}>
-            <View style={[styles.card, { backgroundColor: colors.card }]}>
+            <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.text, elevation: 4 }]}>
               <Text style={[styles.cardTitle, { color: colors.text, fontSize: scaledFontSize(18) }]}>
                 Energy Consumption
               </Text>
@@ -216,15 +576,10 @@ export default function AnalyticsScreen() {
                 Your energy usage over time
               </Text>
 
-              <LineChart
-                data={chartData}
-                width={dimensions.width - 40}
-                height={220}
-                chartConfig={chartConfig}
-                bezier
-                style={styles.chart}
-                yAxisSuffix=" kWh"
-              />
+              <View style={styles.chartContainer}>
+                <Text style={styles.chartInstructions}>Tap or drag on chart to see details</Text>
+                <EnhancedLineChart data={chartData} width={dimensions.width - 40} height={220} yAxisSuffix=" kWh" />
+              </View>
 
               <View style={styles.statsContainer}>
                 <View style={styles.statItem}>
@@ -274,7 +629,7 @@ export default function AnalyticsScreen() {
               </View>
             </View>
 
-            <View style={[styles.card, { backgroundColor: colors.card }]}>
+            <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.text, elevation: 4 }]}>
               <Text style={[styles.cardTitle, { color: colors.text, fontSize: scaledFontSize(18) }]}>
                 Energy Efficiency Score
               </Text>
@@ -283,12 +638,20 @@ export default function AnalyticsScreen() {
               </Text>
 
               <View style={styles.scoreContainer}>
-                <View style={[styles.scoreCircle, { borderColor: colors.primary }]}>
+                <Animated.View
+                  style={[
+                    styles.scoreCircle,
+                    {
+                      borderColor: colors.primary,
+                      transform: [{ scale: scaleAnimation }],
+                    },
+                  ]}
+                >
                   <Text style={[styles.scoreValue, { color: colors.primary, fontSize: scaledFontSize(32) }]}>85</Text>
                   <Text style={[styles.scoreLabel, { color: colors.textSecondary, fontSize: scaledFontSize(14) }]}>
                     out of 100
                   </Text>
-                </View>
+                </Animated.View>
 
                 <View style={styles.scoreDetails}>
                   <View style={styles.scoreItem}>
@@ -319,7 +682,7 @@ export default function AnalyticsScreen() {
 
         {activeTab === "comparison" && (
           <View style={styles.section}>
-            <View style={[styles.card, { backgroundColor: colors.card }]}>
+            <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.text, elevation: 4 }]}>
               <Text style={[styles.cardTitle, { color: colors.text, fontSize: scaledFontSize(18) }]}>
                 Neighborhood Comparison
               </Text>
@@ -327,23 +690,16 @@ export default function AnalyticsScreen() {
                 How your usage compares to others
               </Text>
 
-              <BarChart
-                data={comparisonData}
-                width={dimensions.width - 40}
-                height={220}
-                chartConfig={{
-                  ...chartConfig,
-                  barPercentage: 0.7,
-                  color: (opacity = 1, index = 0) => {
-                    const colors = [colors.primary, colors.secondary, colors.tertiary]
-                    return colors[index] || colors[0]
-                  },
-                }}
-                style={styles.chart}
-                yAxisSuffix=" kWh"
-                fromZero
-                showValuesOnTopOfBars
-              />
+              <View style={styles.chartContainer}>
+                <Text style={styles.chartInstructions}>Tap on bars to see details</Text>
+                <EnhancedBarChart
+                  data={comparisonData}
+                  width={dimensions.width - 40}
+                  height={220}
+                  yAxisSuffix=" kWh"
+                  showValuesOnTopOfBars={true}
+                />
+              </View>
 
               <View style={styles.comparisonLegend}>
                 <View style={styles.legendItem}>
@@ -369,7 +725,7 @@ export default function AnalyticsScreen() {
               </View>
             </View>
 
-            <View style={[styles.card, { backgroundColor: colors.card }]}>
+            <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.text, elevation: 4 }]}>
               <Text style={[styles.cardTitle, { color: colors.text, fontSize: scaledFontSize(18) }]}>
                 Historical Comparison
               </Text>
@@ -433,7 +789,7 @@ export default function AnalyticsScreen() {
 
         {activeTab === "devices" && (
           <View style={styles.section}>
-            <View style={[styles.card, { backgroundColor: colors.card }]}>
+            <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.text, elevation: 4 }]}>
               <Text style={[styles.cardTitle, { color: colors.text, fontSize: scaledFontSize(18) }]}>
                 Device Usage Breakdown
               </Text>
@@ -441,20 +797,21 @@ export default function AnalyticsScreen() {
                 Energy consumption by device
               </Text>
 
-              <PieChart
-                data={devicePieData}
-                width={dimensions.width - 40}
-                height={220}
-                chartConfig={chartConfig}
-                accessor="percentage"
-                backgroundColor="transparent"
-                paddingLeft="15"
-                absolute
-              />
+              <View style={styles.chartContainer}>
+                <Text style={styles.chartInstructions}>Tap on pie slices to see details</Text>
+                <EnhancedPieChart data={devicePieData} width={dimensions.width - 40} height={220} />
+              </View>
 
               <View style={styles.deviceList}>
-                {deviceUsage.map((device) => (
-                  <View key={device.id} style={styles.deviceItem}>
+                {deviceUsage.map((device, index) => (
+                  <TouchableOpacity
+                    key={device.id}
+                    style={[
+                      styles.deviceItem,
+                      activeSlice === index && { backgroundColor: `${devicePieData[index].color}15` },
+                    ]}
+                    onPress={() => handlePieSlicePress(index)}
+                  >
                     <View style={styles.deviceInfo}>
                       <Ionicons
                         name={
@@ -469,7 +826,7 @@ export default function AnalyticsScreen() {
                                   : "apps-outline"
                         }
                         size={20}
-                        color={colors.primary}
+                        color={devicePieData[index].color}
                         style={styles.deviceIcon}
                       />
                       <Text style={[styles.deviceName, { color: colors.text, fontSize: scaledFontSize(14) }]}>
@@ -477,7 +834,12 @@ export default function AnalyticsScreen() {
                       </Text>
                     </View>
                     <View style={styles.deviceStats}>
-                      <Text style={[styles.deviceUsage, { color: colors.primary, fontSize: scaledFontSize(14) }]}>
+                      <Text
+                        style={[
+                          styles.deviceUsage,
+                          { color: devicePieData[index].color, fontSize: scaledFontSize(14) },
+                        ]}
+                      >
                         {device.usage} {device.unit}
                       </Text>
                       <Text
@@ -486,12 +848,12 @@ export default function AnalyticsScreen() {
                         ({device.percentage}%)
                       </Text>
                     </View>
-                  </View>
+                  </TouchableOpacity>
                 ))}
               </View>
             </View>
 
-            <View style={[styles.card, { backgroundColor: colors.card }]}>
+            <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.text, elevation: 4 }]}>
               <Text style={[styles.cardTitle, { color: colors.text, fontSize: scaledFontSize(18) }]}>
                 Device Efficiency Recommendations
               </Text>
@@ -545,7 +907,7 @@ export default function AnalyticsScreen() {
 
         {activeTab === "cost" && (
           <View style={styles.section}>
-            <View style={[styles.card, { backgroundColor: colors.card }]}>
+            <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.text, elevation: 4 }]}>
               <Text style={[styles.cardTitle, { color: colors.text, fontSize: scaledFontSize(18) }]}>
                 Energy Cost Analysis
               </Text>
@@ -553,26 +915,23 @@ export default function AnalyticsScreen() {
                 Your energy costs over time
               </Text>
 
-              <BarChart
-                data={{
-                  labels: chartData.labels,
-                  datasets: [
-                    {
-                      data: chartData.costData,
-                      color: () => colors.secondary,
-                    },
-                  ],
-                }}
-                width={dimensions.width - 40}
-                height={220}
-                chartConfig={{
-                  ...chartConfig,
-                  color: () => colors.secondary,
-                }}
-                style={styles.chart}
-                yAxisSuffix=" KES"
-                verticalLabelRotation={30}
-              />
+              <View style={styles.chartContainer}>
+                <Text style={styles.chartInstructions}>Tap on bars to see details</Text>
+                <EnhancedBarChart
+                  data={{
+                    labels: chartData.labels,
+                    datasets: [
+                      {
+                        data: chartData.costData,
+                        color: () => colors.secondary,
+                      },
+                    ],
+                  }}
+                  width={dimensions.width - 40}
+                  height={220}
+                  yAxisSuffix=" KES"
+                />
+              </View>
 
               <View style={styles.costSummary}>
                 <View style={styles.costItem}>
@@ -625,7 +984,7 @@ export default function AnalyticsScreen() {
               </View>
             </View>
 
-            <View style={[styles.card, { backgroundColor: colors.card }]}>
+            <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.text, elevation: 4 }]}>
               <Text style={[styles.cardTitle, { color: colors.text, fontSize: scaledFontSize(18) }]}>
                 Cost Breakdown by Device
               </Text>
@@ -657,7 +1016,7 @@ export default function AnalyticsScreen() {
               </View>
             </View>
 
-            <View style={[styles.card, { backgroundColor: colors.card }]}>
+            <View style={[styles.card, { backgroundColor: colors.card, shadowColor: colors.text, elevation: 4 }]}>
               <Text style={[styles.cardTitle, { color: colors.text, fontSize: scaledFontSize(18) }]}>
                 Cost Saving Tips
               </Text>
@@ -725,7 +1084,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
   },
   tab: {
     flex: 1,
@@ -750,6 +1108,9 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
   },
   cardTitle: {
     fontFamily: "Poppins-Bold",
@@ -758,6 +1119,17 @@ const styles = StyleSheet.create({
   cardSubtitle: {
     fontFamily: "Poppins-Regular",
     marginBottom: 16,
+  },
+  chartContainer: {
+    marginVertical: 8,
+    position: "relative",
+  },
+  chartInstructions: {
+    textAlign: "center",
+    fontSize: 12,
+    fontStyle: "italic",
+    marginBottom: 8,
+    opacity: 0.7,
   },
   chart: {
     marginVertical: 8,
@@ -856,6 +1228,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 8,
   },
   deviceInfo: {
     flexDirection: "row",
@@ -963,6 +1338,43 @@ const styles = StyleSheet.create({
   },
   tipText: {
     fontFamily: "Poppins-Regular",
+  },
+  tooltip: {
+    position: "absolute",
+    padding: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 999,
+    minWidth: 100,
+  },
+  tooltipLabel: {
+    fontFamily: "Poppins-Medium",
+    fontSize: 12,
+  },
+  tooltipValue: {
+    fontFamily: "Poppins-Bold",
+    fontSize: 14,
+  },
+  pieTooltip: {
+    position: "absolute",
+    right: 10,
+    top: 10,
+    padding: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    width: "50%",
+    zIndex: 999,
+  },
+  pieTooltipTitle: {
+    fontFamily: "Poppins-Medium",
+    fontSize: 14,
+  },
+  pieTooltipValue: {
+    fontFamily: "Poppins-Bold",
+    fontSize: 14,
+    marginTop: 4,
   },
 })
 

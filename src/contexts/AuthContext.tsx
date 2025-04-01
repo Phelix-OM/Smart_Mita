@@ -163,11 +163,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
-      await AsyncStorage.removeItem("user")
-      setUser(null)
+      // First update the state to trigger navigation changes
       setIsAuthenticated(false)
+      setUser(null)
+
+      // Then remove from storage
+      await AsyncStorage.removeItem("user")
+
+      console.log("Logout successful, auth state:", { isAuthenticated: false, user: null })
     } catch (error) {
       console.error("Logout failed:", error)
+      // Even if storage removal fails, ensure the state is updated
+      setIsAuthenticated(false)
+      setUser(null)
     }
   }
 

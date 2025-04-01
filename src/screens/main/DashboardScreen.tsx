@@ -26,18 +26,28 @@ import { HouseholdComparisonChart } from "../../components/ui/HouseholdCompariso
 import { Sidebar } from "../../components/layout/Sidebar"
 import { useResponsive } from "../../hooks/useResponsive"
 import { useNavigation } from "@react-navigation/native"
-
+import { useLiveEnergyData } from "../../hooks/UseLiveEnergyData"
+import UtilityConnectionScreen from "@/src/screens/auth/UtilityConnectionScreen"
 type TimeRange = "day" | "week" | "month" | "year"
 type TabType = "consumption" | "compare" | "recommendations"
 
 export default function DashboardScreen() {
   const { t } = useTranslation()
   const { colors } = useTheme()
-  const { energyData, refreshEnergyData, isLoading, connectedUtilities, deviceUsage, neighborhoodData, currency } =
-    useUtility()
+  const {
+    refreshEnergyData: refreshUtilityData,
+    isLoading,
+    connectedUtilities,
+    deviceUsage,
+    neighborhoodData,
+    currency,
+  } = useUtility()
   const { user } = useAuth()
   const { isSmallScreen, isMediumScreen, isLandscape, dimensions, spacing, scaledFontSize } = useResponsive()
   const navigation = useNavigation()
+
+  // Use our live energy data hook
+  const { energyData, isSimulating, toggleSimulation, updateEnergyData } = useLiveEnergyData(3000) // Update every 3 seconds
 
   const [refreshing, setRefreshing] = useState(false)
   const [selectedTimeRange, setSelectedTimeRange] = useState<TimeRange>("week")
@@ -50,30 +60,15 @@ export default function DashboardScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true)
-    await refreshEnergyData()
+    // Force an immediate update of our simulated data
+    updateEnergyData()
+    await refreshUtilityData()
     setRefreshing(false)
   }
 
   const toggleSidebar = () => {
     setSidebarVisible(!sidebarVisible)
   }
-
-  // Mock data for current usage
-  const currentUsage = 3.2
-  const currentUsageChange = -5
-
-  // Calculate daily usage
-  const dailyUsage = 28.5
-  const dailyUsageChange = 2
-
-  // Calculate potential savings
-  const potentialSavings = 83
-  const potentialSavingsAmount = 12.45
-
-  // Household comparison data
-  const householdValue = 28.5
-  const neighborhoodValue = 32.1
-  const efficientValue = 22.3
 
   // Mock data for recommendations
   const recommendations = [
@@ -103,34 +98,19 @@ export default function DashboardScreen() {
     },
   ]
 
-  // Prepare data for the chart based on selected time range
+  // Get chart data based on selected time range
   const getChartData = () => {
     switch (selectedTimeRange) {
       case "day":
-        return {
-          data: [10, 8, 12, 14, 9, 11, 15, 18, 22, 19, 16, 14],
-          labels: ["6am", "8am", "10am", "12pm", "2pm", "4pm", "6pm", "8pm", "10pm", "12am", "2am", "4am"],
-        }
+        return energyData.chartData.day
       case "week":
-        return {
-          data: [25, 22, 24, 21, 26, 28, 27],
-          labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-        }
+        return energyData.chartData.week
       case "month":
-        return {
-          data: [120, 135, 140, 130, 145, 150, 155, 140, 130, 145, 160, 150, 140, 155, 165],
-          labels: ["1", "5", "10", "15", "20", "25", "30"],
-        }
+        return energyData.chartData.month
       case "year":
-        return {
-          data: [450, 420, 480, 520, 540, 580, 620, 650, 600, 580, 520, 490],
-          labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
-        }
+        return energyData.chartData.year
       default:
-        return {
-          data: [25, 22, 24, 21, 26, 28, 27],
-          labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-        }
+        return energyData.chartData.week
     }
   }
 
@@ -196,6 +176,24 @@ export default function DashboardScreen() {
                 Here's an overview of your energy consumption
               </Text>
             </View>
+
+            {/* Add a toggle button for simulation */}
+            <TouchableOpacity
+              style={[
+                styles.simulationToggle,
+                { backgroundColor: isSimulating ? `${colors.success}15` : `${colors.error}15` },
+              ]}
+              onPress={toggleSimulation}
+            >
+              <Ionicons
+                name={isSimulating ? "pulse" : "pause"}
+                size={16}
+                color={isSimulating ? colors.success : colors.error}
+              />
+              <Text style={[styles.simulationToggleText, { color: isSimulating ? colors.success : colors.error }]}>
+                {isSimulating ? "Live" : "Paused"}
+              </Text>
+            </TouchableOpacity>
           </View>
 
           <ScrollView
@@ -206,27 +204,27 @@ export default function DashboardScreen() {
             <View style={[styles.metricsContainer, isCompactLayout && styles.metricsContainerCompact]}>
               <MetricCard
                 title="Current Usage"
-                value={currentUsage.toString()}
+                value={energyData.currentUsage.toString()}
                 unit="kW"
                 subtitle="Currently active power"
                 icon={<Ionicons name="flash-outline" size={24} color={colors.primary} />}
-                changePercentage={currentUsageChange}
+                changePercentage={energyData.currentUsageChange}
               />
 
               <MetricCard
                 title="Daily Consumption"
-                value={dailyUsage.toString()}
+                value={energyData.dailyUsage.toString()}
                 unit="kWh"
                 subtitle="Compared to yesterday"
                 icon={<Ionicons name="sunny-outline" size={24} color={colors.warning} />}
-                changePercentage={dailyUsageChange}
+                changePercentage={energyData.dailyUsageChange}
               />
 
               <MetricCard
                 title="Potential Savings"
-                value={potentialSavingsAmount.toString()}
+                value={energyData.potentialSavingsAmount.toString()}
                 unit=""
-                subtitle={`Possible monthly savings ≈ ${potentialSavings} kWh`}
+                subtitle={`Possible monthly savings ≈ ${energyData.potentialSavings} kWh`}
                 icon={<Ionicons name="trending-down-outline" size={24} color={colors.tertiary} />}
                 isCurrency={true}
               />
@@ -350,7 +348,7 @@ export default function DashboardScreen() {
                     See which devices consume the most energy
                   </Text>
 
-                  {deviceUsage.map((device) => (
+                  {energyData.deviceUsage.map((device) => (
                     <DeviceUsageCard
                       key={device.id}
                       deviceName={device.name}
@@ -378,9 +376,9 @@ export default function DashboardScreen() {
               <View style={styles.compareSection}>
                 {/* Household Comparison Chart */}
                 <HouseholdComparisonChart
-                  householdValue={householdValue}
-                  neighborhoodValue={neighborhoodValue}
-                  efficientValue={efficientValue}
+                  householdValue={energyData.householdValue}
+                  neighborhoodValue={energyData.neighborhoodValue}
+                  efficientValue={energyData.efficientValue}
                   unit="kWh"
                   title="Household Comparison"
                   subtitle="Your energy usage compared to others"
@@ -420,14 +418,24 @@ export default function DashboardScreen() {
                       <View style={styles.rankingItem}>
                         <Ionicons name="trending-down" size={20} color={colors.success} />
                         <Text style={[styles.rankingText, { color: colors.text }]}>
-                          Your consumption is 11% below neighborhood average
+                          Your consumption is{" "}
+                          {Math.round(
+                            ((energyData.neighborhoodValue - energyData.householdValue) /
+                              energyData.neighborhoodValue) *
+                              100,
+                          )}
+                          % below neighborhood average
                         </Text>
                       </View>
 
                       <View style={styles.rankingItem}>
                         <Ionicons name="flash" size={20} color={colors.warning} />
                         <Text style={[styles.rankingText, { color: colors.text }]}>
-                          You could save 22% more by reaching efficient home levels
+                          You could save{" "}
+                          {Math.round(
+                            ((energyData.householdValue - energyData.efficientValue) / energyData.householdValue) * 100,
+                          )}
+                          % more by reaching efficient home levels
                         </Text>
                       </View>
                     </View>
@@ -516,6 +524,19 @@ const styles = StyleSheet.create({
   subGreeting: {
     fontFamily: "Poppins-Regular",
     marginTop: 4,
+  },
+  simulationToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    marginLeft: "auto",
+  },
+  simulationToggleText: {
+    fontFamily: "Poppins-Medium",
+    fontSize: 12,
+    marginLeft: 4,
   },
   metricsContainer: {
     flexDirection: "row",

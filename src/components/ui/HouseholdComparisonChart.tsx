@@ -1,16 +1,19 @@
 "use client"
 
-import type React from "react"
-import { View, Text, StyleSheet } from "react-native"
-import { BarChart } from "react-native-chart-kit"
+import React from "react"
+import { View, Text, StyleSheet, Dimensions, Animated } from "react-native"
 import { useTheme } from "../../contexts/ThemeContext"
+import { LinearGradient } from "expo-linear-gradient"
+import { Svg, Line, Defs, LinearGradient as SvgGradient, Stop } from "react-native-svg"
 import { useResponsive } from "../../hooks/useResponsive"
 
-type HouseholdComparisonChartProps = {
+const { width: screenWidth } = Dimensions.get("window")
+
+interface HouseholdComparisonChartProps {
   householdValue: number
   neighborhoodValue: number
   efficientValue: number
-  unit?: string
+  unit: string
   title?: string
   subtitle?: string
 }
@@ -19,130 +22,462 @@ export const HouseholdComparisonChart: React.FC<HouseholdComparisonChartProps> =
   householdValue,
   neighborhoodValue,
   efficientValue,
-  unit = "kWh",
-  title = "Household Comparison",
-  subtitle = "Your energy usage compared to others",
+  unit,
+  title,
+  subtitle,
 }) => {
   const { colors, isDarkMode } = useTheme()
-  const { dimensions, scaledFontSize, isSmallScreen } = useResponsive()
+  const { scaledFontSize, spacing, isSmallScreen, dimensions } = useResponsive()
+  const width = dimensions.width
 
-  // Prepare data for the chart
-  const data = {
-    labels: ["Your Home", "Neighborhood", "Efficient"],
-    datasets: [
-      {
-        data: [householdValue, neighborhoodValue, efficientValue],
-        colors: [() => colors.primary, () => colors.secondary, () => colors.tertiary],
-      },
-    ],
-  }
+  // Animation values
+  const householdAnim = React.useRef(new Animated.Value(0)).current
+  const neighborhoodAnim = React.useRef(new Animated.Value(0)).current
+  const efficientAnim = React.useRef(new Animated.Value(0)).current
 
-  // Chart configuration
-  const chartConfig = {
-    backgroundGradientFrom: colors.card,
-    backgroundGradientTo: colors.card,
-    decimalPlaces: 1,
-    color: (opacity = 1, index = 0) => {
-      const colorList = [colors.primary, colors.secondary, colors.tertiary]
-      return colorList[index] || colors.primary
-    },
-    labelColor: () => colors.text,
-    style: {
-      borderRadius: 16,
-    },
-    barPercentage: 0.7,
-    propsForBackgroundLines: {
-      stroke: isDarkMode ? "rgba(255, 255, 255, 0.1)" : "rgba(0, 0, 0, 0.05)",
-    },
-  }
+  React.useEffect(() => {
+    // Start animations
+    Animated.parallel([
+      Animated.timing(householdAnim, {
+        toValue: 1,
+        duration: 1000,
+        useNativeDriver: false,
+      }),
+      Animated.timing(neighborhoodAnim, {
+        toValue: 1,
+        duration: 1000,
+        useNativeDriver: false,
+      }),
+      Animated.timing(efficientAnim, {
+        toValue: 1,
+        duration: 1000,
+        useNativeDriver: false,
+      }),
+    ]).start()
+  }, [householdValue, neighborhoodValue, efficientValue])
 
-  // Calculate chart width based on screen size
-  const chartWidth = dimensions.width - (isSmallScreen ? 40 : 60)
+  // Find the maximum value for scaling
+  const maxValue = Math.max(householdValue, neighborhoodValue, efficientValue) * 1.2
 
-  // Calculate percentage differences
-  const householdVsNeighborhood = (((neighborhoodValue - householdValue) / neighborhoodValue) * 100).toFixed(1)
-  const householdVsEfficient = (((efficientValue - householdValue) / efficientValue) * 100).toFixed(1)
+  // Chart dimensions - responsive
+  const chartWidth = width - spacing(8)
+  const chartHeight = isSmallScreen ? 180 : 220
 
-  const isMoreEfficient = householdValue < neighborhoodValue
+  // Calculate bar width based on screen size - thinner bars
+  const barWidth = Math.min(chartWidth * 0.12, 30) // Cap at 30px for larger screens
+  const barSpacing = (chartWidth - barWidth * 3) / 4
+  const barRadius = Math.min(barWidth / 2, 8) // Proportional radius, max 8px
+
+  // Calculate bar heights based on values
+  const householdHeight = householdAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, (householdValue / maxValue) * (chartHeight - spacing(5))],
+  })
+
+  const neighborhoodHeight = neighborhoodAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, (neighborhoodValue / maxValue) * (chartHeight - spacing(5))],
+  })
+
+  const efficientHeight = efficientAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, (efficientValue / maxValue) * (chartHeight - spacing(5))],
+  })
+
+  // Calculate percentages for comparison
+  const householdVsNeighborhood = ((householdValue - neighborhoodValue) / neighborhoodValue) * 100
+  const householdVsEfficient = ((householdValue - efficientValue) / efficientValue) * 100
 
   return (
-    <View style={styles.container}>
-      {title && <Text style={[styles.title, { color: colors.text, fontSize: scaledFontSize(18) }]}>{title}</Text>}
-
-      {subtitle && (
-        <Text style={[styles.subtitle, { color: colors.textSecondary, fontSize: scaledFontSize(14) }]}>{subtitle}</Text>
+    <View style={[styles.container, { backgroundColor: colors.card }]}>
+      {title && (
+        <Text
+          style={[
+            styles.title,
+            {
+              color: colors.text,
+              fontSize: scaledFontSize(18),
+              marginBottom: spacing(0.5),
+            },
+          ]}
+        >
+          {title}
+        </Text>
       )}
 
-      <View
-        style={[
-          styles.chartContainer,
-          { backgroundColor: colors.card, borderRadius: 16, padding: 16, marginVertical: 16 },
-        ]}
-      >
-        <BarChart
-          data={data}
-          width={chartWidth}
-          height={220}
-          chartConfig={chartConfig}
-          style={styles.chart}
-          yAxisSuffix={` ${unit}`}
-          fromZero
-          showValuesOnTopOfBars
-          withInnerLines={true}
-        />
-      </View>
+      {subtitle && (
+        <Text
+          style={[
+            styles.subtitle,
+            {
+              color: colors.textSecondary,
+              fontSize: scaledFontSize(14),
+              marginBottom: spacing(2.5),
+            },
+          ]}
+        >
+          {subtitle}
+        </Text>
+      )}
 
-      <View style={styles.legendContainer}>
-        <View style={styles.legendItem}>
-          <View style={[styles.legendColor, { backgroundColor: colors.primary }]} />
-          <Text style={[styles.legendText, { color: colors.text, fontSize: scaledFontSize(14) }]}>Your Home</Text>
-        </View>
-
-        <View style={styles.legendItem}>
-          <View style={[styles.legendColor, { backgroundColor: colors.secondary }]} />
-          <Text style={[styles.legendText, { color: colors.text, fontSize: scaledFontSize(14) }]}>Neighborhood</Text>
-        </View>
-
-        <View style={styles.legendItem}>
-          <View style={[styles.legendColor, { backgroundColor: colors.tertiary }]} />
-          <Text style={[styles.legendText, { color: colors.text, fontSize: scaledFontSize(14) }]}>Efficient Homes</Text>
-        </View>
-      </View>
-
-      <View
-        style={[
-          styles.insightCard,
-          {
-            backgroundColor: isMoreEfficient ? `${colors.success}15` : `${colors.warning}15`,
-            borderRadius: 12,
-            padding: 16,
-            marginTop: 16,
-          },
-        ]}
-      >
-        <View style={styles.insightHeader}>
-          <View
-            style={[
-              styles.insightIconContainer,
-              { backgroundColor: isMoreEfficient ? colors.success : colors.warning },
-            ]}
-          >
-            <Text style={[styles.insightIcon, { color: colors.white }]}>{isMoreEfficient ? "👍" : "💡"}</Text>
-          </View>
-          <Text style={[styles.insightTitle, { color: colors.text, fontSize: scaledFontSize(16) }]}>
-            {isMoreEfficient ? "Great job! You're doing better than average" : "There's room for improvement"}
+      <View style={[styles.chartContainer, { height: chartHeight }]}>
+        {/* Y-axis labels */}
+        <View style={styles.yAxisLabels}>
+          <Text style={[styles.axisLabel, { color: colors.textSecondary, fontSize: scaledFontSize(10) }]}>
+            {Math.round(maxValue)} {unit}
+          </Text>
+          <Text style={[styles.axisLabel, { color: colors.textSecondary, fontSize: scaledFontSize(10) }]}>
+            {Math.round(maxValue / 2)} {unit}
+          </Text>
+          <Text style={[styles.axisLabel, { color: colors.textSecondary, fontSize: scaledFontSize(10) }]}>
+            0 {unit}
           </Text>
         </View>
 
-        <Text style={[styles.insightText, { color: colors.text, fontSize: scaledFontSize(14) }]}>
-          {isMoreEfficient
-            ? `Your home is using ${Math.abs(Number(householdVsNeighborhood))}% less energy than the average home in your neighborhood.`
-            : `Your home is using ${Math.abs(Number(householdVsNeighborhood))}% more energy than the average home in your neighborhood.`}
-        </Text>
+        {/* Chart area */}
+        <View style={styles.chartArea}>
+          {/* Grid lines */}
+          <Svg width={chartWidth} height={chartHeight}>
+            <Defs>
+              <SvgGradient id="yourHomeGradient" x1="0" y1="0" x2="0" y2="1">
+                <Stop offset="0" stopColor={colors.primary} stopOpacity="1" />
+                <Stop offset="1" stopColor={colors.primary} stopOpacity="0.6" />
+              </SvgGradient>
+              <SvgGradient id="neighborhoodGradient" x1="0" y1="0" x2="0" y2="1">
+                <Stop offset="0" stopColor={colors.secondary} stopOpacity="1" />
+                <Stop offset="1" stopColor={colors.secondary} stopOpacity="0.6" />
+              </SvgGradient>
+              <SvgGradient id="efficientGradient" x1="0" y1="0" x2="0" y2="1">
+                <Stop offset="0" stopColor={colors.success} stopOpacity="1" />
+                <Stop offset="1" stopColor={colors.success} stopOpacity="0.6" />
+              </SvgGradient>
+            </Defs>
 
-        <Text style={[styles.insightText, { color: colors.text, fontSize: scaledFontSize(14), marginTop: 8 }]}>
-          {`The most efficient homes in your area use ${Math.abs(Number(householdVsEfficient))}% ${householdValue < efficientValue ? "less" : "more"} energy than your home.`}
-        </Text>
+            {/* Grid lines */}
+            <Line
+              x1="0"
+              y1={chartHeight / 2}
+              x2={chartWidth}
+              y2={chartHeight / 2}
+              stroke={isDarkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}
+              strokeDasharray="5,5"
+            />
+            <Line
+              x1="0"
+              y1={chartHeight}
+              x2={chartWidth}
+              y2={chartHeight}
+              stroke={isDarkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}
+            />
+          </Svg>
+
+          {/* Bars */}
+          <View style={styles.barsContainer}>
+            {/* Your Home Bar */}
+            <View style={styles.barGroup}>
+              <View style={styles.barLabelContainer}>
+                <Animated.View
+                  style={[
+                    styles.barValueLabel,
+                    {
+                      backgroundColor: colors.primary,
+                      opacity: householdAnim,
+                      transform: [
+                        {
+                          translateY: householdAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [20, 0],
+                          }),
+                        },
+                      ],
+                      paddingHorizontal: spacing(1),
+                      paddingVertical: spacing(0.25),
+                      borderRadius: spacing(1.5),
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.barValueText,
+                      {
+                        color: colors.white,
+                        fontSize: scaledFontSize(11),
+                      },
+                    ]}
+                  >
+                    {householdValue.toFixed(1)}
+                  </Text>
+                </Animated.View>
+              </View>
+              <View style={styles.barWrapper}>
+                <Animated.View
+                  style={[
+                    styles.barBackground,
+                    {
+                      backgroundColor: isDarkMode ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)",
+                      height: chartHeight - spacing(5),
+                      width: barWidth,
+                      borderRadius: barRadius,
+                    },
+                  ]}
+                />
+                <Animated.View
+                  style={[
+                    styles.bar,
+                    {
+                      height: householdHeight,
+                      width: barWidth,
+                      borderRadius: barRadius,
+                      backgroundColor: colors.primary,
+                    },
+                  ]}
+                >
+                  <LinearGradient
+                    colors={[colors.primary, `${colors.primary}90`]}
+                    style={[styles.barGradient, { borderRadius: barRadius }]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 0, y: 1 }}
+                  />
+                </Animated.View>
+              </View>
+              <Text
+                style={[
+                  styles.barLabel,
+                  {
+                    color: colors.text,
+                    fontSize: scaledFontSize(12),
+                    marginTop: spacing(1),
+                  },
+                ]}
+              >
+                Your Home
+              </Text>
+            </View>
+
+            {/* Neighborhood Bar */}
+            <View style={styles.barGroup}>
+              <View style={styles.barLabelContainer}>
+                <Animated.View
+                  style={[
+                    styles.barValueLabel,
+                    {
+                      backgroundColor: colors.secondary,
+                      opacity: neighborhoodAnim,
+                      transform: [
+                        {
+                          translateY: neighborhoodAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [20, 0],
+                          }),
+                        },
+                      ],
+                      paddingHorizontal: spacing(1),
+                      paddingVertical: spacing(0.25),
+                      borderRadius: spacing(1.5),
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.barValueText,
+                      {
+                        color: colors.white,
+                        fontSize: scaledFontSize(11),
+                      },
+                    ]}
+                  >
+                    {neighborhoodValue.toFixed(1)}
+                  </Text>
+                </Animated.View>
+              </View>
+              <View style={styles.barWrapper}>
+                <Animated.View
+                  style={[
+                    styles.barBackground,
+                    {
+                      backgroundColor: isDarkMode ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)",
+                      height: chartHeight - spacing(5),
+                      width: barWidth,
+                      borderRadius: barRadius,
+                    },
+                  ]}
+                />
+                <Animated.View
+                  style={[
+                    styles.bar,
+                    {
+                      height: neighborhoodHeight,
+                      width: barWidth,
+                      borderRadius: barRadius,
+                      backgroundColor: colors.secondary,
+                    },
+                  ]}
+                >
+                  <LinearGradient
+                    colors={[colors.secondary, `${colors.secondary}90`]}
+                    style={[styles.barGradient, { borderRadius: barRadius }]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 0, y: 1 }}
+                  />
+                </Animated.View>
+              </View>
+              <Text
+                style={[
+                  styles.barLabel,
+                  {
+                    color: colors.text,
+                    fontSize: scaledFontSize(12),
+                    marginTop: spacing(1),
+                  },
+                ]}
+              >
+                Neighborhood
+              </Text>
+            </View>
+
+            {/* Efficient Homes Bar */}
+            <View style={styles.barGroup}>
+              <View style={styles.barLabelContainer}>
+                <Animated.View
+                  style={[
+                    styles.barValueLabel,
+                    {
+                      backgroundColor: colors.success,
+                      opacity: efficientAnim,
+                      transform: [
+                        {
+                          translateY: efficientAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [20, 0],
+                          }),
+                        },
+                      ],
+                      paddingHorizontal: spacing(1),
+                      paddingVertical: spacing(0.25),
+                      borderRadius: spacing(1.5),
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.barValueText,
+                      {
+                        color: colors.white,
+                        fontSize: scaledFontSize(11),
+                      },
+                    ]}
+                  >
+                    {efficientValue.toFixed(1)}
+                  </Text>
+                </Animated.View>
+              </View>
+              <View style={styles.barWrapper}>
+                <Animated.View
+                  style={[
+                    styles.barBackground,
+                    {
+                      backgroundColor: isDarkMode ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)",
+                      height: chartHeight - spacing(5),
+                      width: barWidth,
+                      borderRadius: barRadius,
+                    },
+                  ]}
+                />
+                <Animated.View
+                  style={[
+                    styles.bar,
+                    {
+                      height: efficientHeight,
+                      width: barWidth,
+                      borderRadius: barRadius,
+                      backgroundColor: colors.success,
+                    },
+                  ]}
+                >
+                  <LinearGradient
+                    colors={[colors.success, `${colors.success}90`]}
+                    style={[styles.barGradient, { borderRadius: barRadius }]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 0, y: 1 }}
+                  />
+                </Animated.View>
+              </View>
+              <Text
+                style={[
+                  styles.barLabel,
+                  {
+                    color: colors.text,
+                    fontSize: scaledFontSize(12),
+                    marginTop: spacing(1),
+                  },
+                ]}
+              >
+                Efficient
+              </Text>
+            </View>
+          </View>
+        </View>
+      </View>
+
+      {/* Comparison insights */}
+      <View style={[styles.insightsContainer, { marginTop: spacing(1.5) }]}>
+        <View
+          style={[
+            styles.insightBadge,
+            {
+              backgroundColor: householdVsNeighborhood < 0 ? `${colors.success}15` : `${colors.error}15`,
+              borderColor: householdVsNeighborhood < 0 ? `${colors.success}30` : `${colors.error}30`,
+              paddingHorizontal: spacing(1.5),
+              paddingVertical: spacing(0.75),
+              borderRadius: spacing(2),
+              marginHorizontal: spacing(0.5),
+              marginBottom: spacing(1),
+              borderWidth: 1,
+            },
+          ]}
+        >
+          <Text
+            style={[
+              styles.insightText,
+              {
+                color: householdVsNeighborhood < 0 ? colors.success : colors.error,
+                fontSize: scaledFontSize(11),
+              },
+            ]}
+          >
+            {Math.abs(householdVsNeighborhood).toFixed(0)}% {householdVsNeighborhood < 0 ? "less than" : "more than"}{" "}
+            neighborhood
+          </Text>
+        </View>
+
+        <View
+          style={[
+            styles.insightBadge,
+            {
+              backgroundColor: householdVsEfficient < 0 ? `${colors.success}15` : `${colors.error}15`,
+              borderColor: householdVsEfficient < 0 ? `${colors.success}30` : `${colors.error}30`,
+              paddingHorizontal: spacing(1.5),
+              paddingVertical: spacing(0.75),
+              borderRadius: spacing(2),
+              marginHorizontal: spacing(0.5),
+              marginBottom: spacing(1),
+              borderWidth: 1,
+            },
+          ]}
+        >
+          <Text
+            style={[
+              styles.insightText,
+              {
+                color: householdVsEfficient < 0 ? colors.success : colors.error,
+                fontSize: scaledFontSize(11),
+              },
+            ]}
+          >
+            {Math.abs(householdVsEfficient).toFixed(0)}% {householdVsEfficient < 0 ? "less than" : "more than"}{" "}
+            efficient homes
+          </Text>
+        </View>
       </View>
     </View>
   )
@@ -150,69 +485,92 @@ export const HouseholdComparisonChart: React.FC<HouseholdComparisonChartProps> =
 
 const styles = StyleSheet.create({
   container: {
-    width: "100%",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
   },
   title: {
     fontFamily: "Poppins-Bold",
-    marginBottom: 4,
   },
   subtitle: {
     fontFamily: "Poppins-Regular",
   },
   chartContainer: {
-    alignItems: "center",
+    flexDirection: "row",
   },
-  chart: {
-    marginVertical: 8,
-    borderRadius: 16,
+  yAxisLabels: {
+    width: 50,
+    height: "100%",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    paddingRight: 8,
+    paddingVertical: 10,
   },
-  legendContainer: {
+  axisLabel: {
+    fontFamily: "Poppins-Regular",
+  },
+  chartArea: {
+    flex: 1,
+    height: "100%",
+  },
+  barsContainer: {
     flexDirection: "row",
     justifyContent: "space-around",
-    flexWrap: "wrap",
-    marginTop: 8,
+    alignItems: "flex-end",
+    height: "100%",
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingBottom: 30,
   },
-  legendItem: {
-    flexDirection: "row",
+  barGroup: {
     alignItems: "center",
-    marginRight: 16,
-    marginBottom: 8,
+    width: "30%",
   },
-  legendColor: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 8,
-  },
-  legendText: {
-    fontFamily: "Poppins-Regular",
-  },
-  insightCard: {
-    marginBottom: 16,
-  },
-  insightHeader: {
-    flexDirection: "row",
+  barLabelContainer: {
+    height: 24,
+    marginBottom: 4,
     alignItems: "center",
-    marginBottom: 12,
   },
-  insightIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: "center",
+  barValueLabel: {
     alignItems: "center",
-    marginRight: 12,
   },
-  insightIcon: {
-    fontSize: 16,
-  },
-  insightTitle: {
+  barValueText: {
     fontFamily: "Poppins-Medium",
-    flex: 1,
+  },
+  barWrapper: {
+    alignItems: "center",
+    justifyContent: "flex-end",
+    height: "100%",
+  },
+  barBackground: {
+    position: "absolute",
+    bottom: 0,
+  },
+  bar: {
+    position: "absolute",
+    bottom: 0,
+    overflow: "hidden",
+  },
+  barGradient: {
+    width: "100%",
+    height: "100%",
+  },
+  barLabel: {
+    fontFamily: "Poppins-Medium",
+    textAlign: "center",
+  },
+  insightsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+  },
+  insightBadge: {
+    marginHorizontal: 4,
   },
   insightText: {
-    fontFamily: "Poppins-Regular",
-    lineHeight: 20,
+    fontFamily: "Poppins-Medium",
   },
 })
 

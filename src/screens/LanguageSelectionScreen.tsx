@@ -13,7 +13,7 @@ export default function LanguageSelectionScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar style="light" />
       <View style={styles.logoContainer}>
-        <Image source={require("../../assets/images/icon.png")} style={styles.logo} resizeMode="contain" />
+        <Image source={require("../../assets/images/logo.png")} style={styles.logo} resizeMode="contain" />
         <Text style={[styles.appName, { color: colors.primary }]}>Smartmita</Text>
       </View>
 

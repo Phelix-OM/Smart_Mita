@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
   Platform,
   KeyboardAvoidingView,
   Share,
+  TextInput,
 } from "react-native"
 import { useTranslation } from "../../hooks/useTranslation"
 import { useTheme } from "../../contexts/ThemeContext"
@@ -27,15 +28,27 @@ import { SafeAreaView } from "react-native-safe-area-context"
 import * as Notifications from "expo-notifications"
 import DateTimePicker from "@react-native-community/datetimepicker"
 import AsyncStorage from "@react-native-async-storage/async-storage"
+import { useLiveDataSettings } from "../../hooks/useLiveDataSettings"
+import Slider from "@react-native-community/slider"
 
 export default function SettingsScreen() {
   const { t } = useTranslation()
   const { colors, isDarkMode, toggleTheme } = useTheme()
-  const { logout, user } = useAuth()
+  const { logout, user, updateUserProfile } = useAuth()
   const { locale, setLocale } = useLanguage()
   const { settings, updateSettings, requestPermissions } = useNotification()
   const { currency, setCurrency } = useUtility()
   const { scaledFontSize, spacing } = useResponsive()
+
+  // Live data simulation settings
+  const {
+    isSimulationEnabled,
+    updateInterval,
+    fluctuationRange,
+    toggleSimulation,
+    setUpdateInterval,
+    setFluctuationRange,
+  } = useLiveDataSettings()
 
   const [isLoading, setIsLoading] = useState(false)
   const [temperatureUnit, setTemperatureUnit] = useState("celsius")
@@ -54,6 +67,12 @@ export default function SettingsScreen() {
   const [isAboutModalVisible, setIsAboutModalVisible] = useState(false)
   const [isPrivacyModalVisible, setIsPrivacyModalVisible] = useState(false)
   const [isHelpModalVisible, setIsHelpModalVisible] = useState(false)
+  const [isEditProfileModalVisible, setIsEditProfileModalVisible] = useState(false)
+  const [isLanguageModalVisible, setIsLanguageModalVisible] = useState(false)
+  const [isCurrencyModalVisible, setIsCurrencyModalVisible] = useState(false)
+  const [isSimulationSettingsModalVisible, setIsSimulationSettingsModalVisible] = useState(false)
+  const [editedName, setEditedName] = useState("")
+  const [editedEmail, setEditedEmail] = useState("")
 
   // Load settings on mount
   useEffect(() => {
@@ -99,10 +118,18 @@ export default function SettingsScreen() {
     loadSettings()
   }, [settings.quietHoursStart, settings.quietHoursEnd])
 
-  const handleLogout = () => {
+  // Initialize edit profile form when modal opens
+  useEffect(() => {
+    if (isEditProfileModalVisible && user) {
+      setEditedName(user.name || "")
+      setEditedEmail(user.email || "")
+    }
+  }, [isEditProfileModalVisible, user])
+
+  const handleLogout = useCallback(() => {
     Alert.alert(
       t("logout"),
-      "Are you sure you want to log out?",
+      t("logoutConfirmation"),
       [
         {
           text: t("cancel"),
@@ -110,60 +137,33 @@ export default function SettingsScreen() {
         },
         {
           text: t("logout"),
-          onPress: () => logout(),
+          onPress: async () => {
+            setIsLoading(true)
+            try {
+              // Call logout directly without setTimeout
+              await logout()
+              console.log("Logout completed in SettingsScreen")
+            } catch (error) {
+              console.error("Error during logout:", error)
+            } finally {
+              setIsLoading(false)
+            }
+          },
           style: "destructive",
         },
       ],
       { cancelable: true },
     )
+  }, [t, logout])
+
+  const handleLanguageChange = (newLocale: string) => {
+    setLocale(newLocale)
+    setIsLanguageModalVisible(false)
   }
 
-  const handleLanguageChange = () => {
-    Alert.alert(
-      t("language"),
-      "Select your preferred language",
-      [
-        {
-          text: "English",
-          onPress: () => setLocale("en"),
-        },
-        {
-          text: "Kiswahili",
-          onPress: () => setLocale("sw"),
-        },
-        {
-          text: t("cancel"),
-          style: "cancel",
-        },
-      ],
-      { cancelable: true },
-    )
-  }
-
-  const handleCurrencyChange = () => {
-    Alert.alert(
-      "Currency",
-      "Select your preferred currency",
-      [
-        {
-          text: "Kenyan Shilling (KES)",
-          onPress: () => setCurrency("KES"),
-        },
-        {
-          text: "US Dollar (USD)",
-          onPress: () => setCurrency("USD"),
-        },
-        {
-          text: "Euro (EUR)",
-          onPress: () => setCurrency("EUR"),
-        },
-        {
-          text: t("cancel"),
-          style: "cancel",
-        },
-      ],
-      { cancelable: true },
-    )
+  const handleCurrencyChange = (newCurrency: string) => {
+    setCurrency(newCurrency)
+    setIsCurrencyModalVisible(false)
   }
 
   const handleTemperatureUnitChange = async () => {
@@ -172,8 +172,8 @@ export default function SettingsScreen() {
     await AsyncStorage.setItem("temperatureUnit", newUnit)
 
     Alert.alert(
-      "Temperature Unit Changed",
-      `Temperature will now be displayed in ${newUnit === "celsius" ? "Celsius (°C)" : "Fahrenheit (°F)"}`,
+      t("temperatureUnitChanged"),
+      t("temperatureUnitChangedMessage", { unit: newUnit === "celsius" ? "Celsius (°C)" : "Fahrenheit (°F)" }),
       [{ text: "OK" }],
     )
   }
@@ -183,27 +183,27 @@ export default function SettingsScreen() {
     setEnergyUnit(newUnit)
     await AsyncStorage.setItem("energyUnit", newUnit)
 
-    Alert.alert("Energy Unit Changed", `Energy will now be displayed in ${newUnit}`, [{ text: "OK" }])
+    Alert.alert(t("energyUnitChanged"), t("energyUnitChangedMessage", { unit: newUnit }), [{ text: "OK" }])
   }
 
   const handleClearCache = () => {
     Alert.alert(
-      "Clear Cache",
-      "This will clear temporary data. Your settings and account information will not be affected.",
+      t("clearCache"),
+      t("clearCacheConfirmation"),
       [
         {
-          text: "Cancel",
+          text: t("cancel"),
           style: "cancel",
         },
         {
-          text: "Clear Cache",
+          text: t("clearCache"),
           onPress: async () => {
             setIsLoading(true)
             // Simulate clearing cache
             await new Promise((resolve) => setTimeout(resolve, 1000))
             setCacheSize("0 MB")
             setIsLoading(false)
-            Alert.alert("Success", "Cache has been cleared successfully")
+            Alert.alert(t("success"), t("cacheCleared"))
           },
         },
       ],
@@ -213,24 +213,22 @@ export default function SettingsScreen() {
 
   const handleClearData = () => {
     Alert.alert(
-      "Clear App Data",
-      "This will reset all your preferences and cached data. This action cannot be undone. Continue?",
+      t("clearAppData"),
+      t("clearAppDataConfirmation"),
       [
         {
-          text: "Cancel",
+          text: t("cancel"),
           style: "cancel",
         },
         {
-          text: "Clear Data",
+          text: t("clearData"),
           onPress: async () => {
             setIsLoading(true)
             // Simulate clearing data
             await AsyncStorage.clear()
             setTimeout(() => {
               setIsLoading(false)
-              Alert.alert("Success", "App data has been cleared successfully. The app will now restart.", [
-                { text: "OK", onPress: () => logout() },
-              ])
+              Alert.alert(t("success"), t("appDataCleared"), [{ text: "OK", onPress: () => logout() }])
             }, 1500)
           },
           style: "destructive",
@@ -258,7 +256,7 @@ export default function SettingsScreen() {
       setIsLoading(false)
     } catch (error) {
       setIsLoading(false)
-      Alert.alert("Error", "Failed to export data. Please try again.")
+      Alert.alert(t("error"), t("exportDataError"))
     }
   }
 
@@ -267,12 +265,9 @@ export default function SettingsScreen() {
     setNotificationPermission(granted)
 
     if (granted) {
-      Alert.alert("Success", "Notification permissions granted!")
+      Alert.alert(t("success"), t("notificationPermissionGranted"))
     } else {
-      Alert.alert(
-        "Permission Denied",
-        "Please enable notifications in your device settings to receive important updates about your energy usage.",
-      )
+      Alert.alert(t("permissionDenied"), t("notificationPermissionDeniedMessage"))
     }
   }
 
@@ -286,6 +281,11 @@ export default function SettingsScreen() {
     })
 
     setIsQuietHoursModalVisible(false)
+  }
+
+  const handleSaveSimulationSettings = () => {
+    setIsSimulationSettingsModalVisible(false)
+    Alert.alert("Simulation Settings", "Your simulation settings have been updated.")
   }
 
   const onStartTimeChange = (event: any, selectedDate?: Date) => {
@@ -315,18 +315,42 @@ export default function SettingsScreen() {
           "Check out SmartMita, the app that helps you monitor and reduce your energy consumption! Download it now: https://smartmita.com",
       })
     } catch (error) {
-      Alert.alert("Error", "Failed to share app")
+      Alert.alert(t("error"), t("shareAppError"))
     }
+  }
+
+  const handleSaveProfile = () => {
+    if (!editedName.trim()) {
+      Alert.alert(t("error"), t("nameRequired"))
+      return
+    }
+
+    if (!editedEmail.trim() || !editedEmail.includes("@")) {
+      Alert.alert(t("error"), t("validEmailRequired"))
+      return
+    }
+
+    setIsLoading(true)
+    // Simulate API call
+    setTimeout(() => {
+      updateUserProfile({
+        name: editedName,
+        email: editedEmail,
+      })
+      setIsLoading(false)
+      setIsEditProfileModalVisible(false)
+      Alert.alert(t("success"), t("profileUpdated"))
+    }, 1000)
   }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <View style={styles.header}>
-        <Text style={[styles.headerTitle, { color: colors.text, fontSize: scaledFontSize(24) }]}>Settings</Text>
+        <Text style={[styles.headerTitle, { color: colors.text, fontSize: scaledFontSize(24) }]}>{t("settings")}</Text>
       </View>
 
       <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-        <Text style={[styles.sectionTitle, { color: colors.text, fontSize: scaledFontSize(18) }]}>Account</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text, fontSize: scaledFontSize(18) }]}>{t("account")}</Text>
 
         <View style={[styles.profileCard, { backgroundColor: colors.card }]}>
           <View style={[styles.profileIconContainer, { backgroundColor: `${colors.primary}20` }]}>
@@ -336,24 +360,32 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.profileInfo}>
             <Text style={[styles.profileName, { color: colors.text, fontSize: scaledFontSize(18) }]}>
-              {user?.name || "User"}
+              {user?.name || t("user")}
             </Text>
             <Text style={[styles.profileEmail, { color: colors.textSecondary, fontSize: scaledFontSize(14) }]}>
               {user?.email || "user@example.com"}
             </Text>
           </View>
-          <TouchableOpacity style={[styles.editProfileButton, { backgroundColor: `${colors.primary}15` }]}>
-            <Text style={[styles.editProfileText, { color: colors.primary, fontSize: scaledFontSize(14) }]}>Edit</Text>
+          <TouchableOpacity
+            style={[styles.editProfileButton, { backgroundColor: `${colors.primary}15` }]}
+            onPress={() => setIsEditProfileModalVisible(true)}
+          >
+            <Text style={[styles.editProfileText, { color: colors.primary, fontSize: scaledFontSize(14) }]}>
+              {t("edit")}
+            </Text>
           </TouchableOpacity>
         </View>
 
         <Text
           style={[styles.sectionTitle, { color: colors.text, fontSize: scaledFontSize(18), marginTop: spacing(3) }]}
         >
-          App Preferences
+          {t("appPreferences")}
         </Text>
 
-        <TouchableOpacity style={[styles.settingItem, { backgroundColor: colors.card }]} onPress={handleLanguageChange}>
+        <TouchableOpacity
+          style={[styles.settingItem, { backgroundColor: colors.card }]}
+          onPress={() => setIsLanguageModalVisible(true)}
+        >
           <View style={[styles.settingIconContainer, { backgroundColor: `${colors.primary}15` }]}>
             <Ionicons name="language-outline" size={24} color={colors.primary} />
           </View>
@@ -377,7 +409,7 @@ export default function SettingsScreen() {
               {t("darkMode")}
             </Text>
             <Text style={[styles.settingValue, { color: colors.textSecondary, fontSize: scaledFontSize(14) }]}>
-              {isDarkMode ? "Enabled" : "Disabled"}
+              {isDarkMode ? t("enabled") : t("disabled")}
             </Text>
           </View>
           <Switch
@@ -388,12 +420,17 @@ export default function SettingsScreen() {
           />
         </View>
 
-        <TouchableOpacity style={[styles.settingItem, { backgroundColor: colors.card }]} onPress={handleCurrencyChange}>
+        <TouchableOpacity
+          style={[styles.settingItem, { backgroundColor: colors.card }]}
+          onPress={() => setIsCurrencyModalVisible(true)}
+        >
           <View style={[styles.settingIconContainer, { backgroundColor: `${colors.primary}15` }]}>
             <Ionicons name="cash-outline" size={24} color={colors.primary} />
           </View>
           <View style={styles.settingContent}>
-            <Text style={[styles.settingTitle, { color: colors.text, fontSize: scaledFontSize(16) }]}>Currency</Text>
+            <Text style={[styles.settingTitle, { color: colors.text, fontSize: scaledFontSize(16) }]}>
+              {t("currency")}
+            </Text>
             <Text style={[styles.settingValue, { color: colors.textSecondary, fontSize: scaledFontSize(14) }]}>
               {currency}
             </Text>
@@ -410,7 +447,7 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.settingContent}>
             <Text style={[styles.settingTitle, { color: colors.text, fontSize: scaledFontSize(16) }]}>
-              Temperature Unit
+              {t("temperatureUnit")}
             </Text>
             <Text style={[styles.settingValue, { color: colors.textSecondary, fontSize: scaledFontSize(14) }]}>
               {temperatureUnit === "celsius" ? "Celsius (°C)" : "Fahrenheit (°F)"}
@@ -432,7 +469,9 @@ export default function SettingsScreen() {
             <Ionicons name="flash-outline" size={24} color={colors.primary} />
           </View>
           <View style={styles.settingContent}>
-            <Text style={[styles.settingTitle, { color: colors.text, fontSize: scaledFontSize(16) }]}>Energy Unit</Text>
+            <Text style={[styles.settingTitle, { color: colors.text, fontSize: scaledFontSize(16) }]}>
+              {t("energyUnit")}
+            </Text>
             <Text style={[styles.settingValue, { color: colors.textSecondary, fontSize: scaledFontSize(14) }]}>
               {energyUnit}
             </Text>
@@ -443,6 +482,58 @@ export default function SettingsScreen() {
             trackColor={{ false: "#767577", true: colors.primary + "80" }}
             thumbColor={energyUnit === "kWh" ? colors.primary : "#f4f3f4"}
           />
+        </TouchableOpacity>
+
+        {/* Live Data Simulation Settings */}
+        <Text
+          style={[
+            styles.sectionTitle,
+            {
+              color: colors.text,
+              marginTop: spacing(3),
+              fontSize: scaledFontSize(18),
+            },
+          ]}
+        >
+          Live Data Simulation
+        </Text>
+
+        <View style={[styles.settingItem, { backgroundColor: colors.card }]}>
+          <View style={[styles.settingIconContainer, { backgroundColor: `${colors.primary}15` }]}>
+            <Ionicons name="pulse" size={24} color={colors.primary} />
+          </View>
+          <View style={styles.settingContent}>
+            <Text style={[styles.settingTitle, { color: colors.text, fontSize: scaledFontSize(16) }]}>
+              Live Data Simulation
+            </Text>
+            <Text style={[styles.settingValue, { color: colors.textSecondary, fontSize: scaledFontSize(14) }]}>
+              {isSimulationEnabled ? "Enabled" : "Disabled"}
+            </Text>
+          </View>
+          <Switch
+            value={isSimulationEnabled}
+            onValueChange={toggleSimulation}
+            trackColor={{ false: "#767577", true: colors.primary + "80" }}
+            thumbColor={isSimulationEnabled ? colors.primary : "#f4f3f4"}
+          />
+        </View>
+
+        <TouchableOpacity
+          style={[styles.settingItem, { backgroundColor: colors.card }]}
+          onPress={() => setIsSimulationSettingsModalVisible(true)}
+        >
+          <View style={[styles.settingIconContainer, { backgroundColor: `${colors.primary}15` }]}>
+            <Ionicons name="options-outline" size={24} color={colors.primary} />
+          </View>
+          <View style={styles.settingContent}>
+            <Text style={[styles.settingTitle, { color: colors.text, fontSize: scaledFontSize(16) }]}>
+              Simulation Settings
+            </Text>
+            <Text style={[styles.settingValue, { color: colors.textSecondary, fontSize: scaledFontSize(14) }]}>
+              Update interval: {updateInterval / 1000}s, Fluctuation: {fluctuationRange}%
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.text} />
         </TouchableOpacity>
 
         <Text
@@ -466,10 +557,10 @@ export default function SettingsScreen() {
             <Ionicons name="notifications-off" size={24} color={colors.warning} style={styles.permissionIcon} />
             <View style={styles.permissionContent}>
               <Text style={[styles.permissionTitle, { color: colors.text, fontSize: scaledFontSize(16) }]}>
-                Notifications Disabled
+                {t("notificationsDisabled")}
               </Text>
               <Text style={[styles.permissionText, { color: colors.textSecondary, fontSize: scaledFontSize(14) }]}>
-                Enable notifications to get updates about your energy usage
+                {t("enableNotificationsMessage")}
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={colors.warning} />
@@ -482,10 +573,10 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.settingContent}>
             <Text style={[styles.settingTitle, { color: colors.text, fontSize: scaledFontSize(16) }]}>
-              Push Notifications
+              {t("pushNotifications")}
             </Text>
             <Text style={[styles.settingValue, { color: colors.textSecondary, fontSize: scaledFontSize(14) }]}>
-              {notificationPermission ? "Enabled" : "Disabled"}
+              {notificationPermission ? t("enabled") : t("disabled")}
             </Text>
           </View>
           <Switch
@@ -505,7 +596,7 @@ export default function SettingsScreen() {
               {t("energyAlerts")}
             </Text>
             <Text style={[styles.settingValue, { color: colors.textSecondary, fontSize: scaledFontSize(14) }]}>
-              Get notified about unusual energy usage
+              {t("energyAlertsDescription")}
             </Text>
           </View>
           <Switch
@@ -526,7 +617,7 @@ export default function SettingsScreen() {
               {t("savingsTips")}
             </Text>
             <Text style={[styles.settingValue, { color: colors.textSecondary, fontSize: scaledFontSize(14) }]}>
-              Receive daily energy-saving tips
+              {t("savingsTipsDescription")}
             </Text>
           </View>
           <Switch
@@ -547,7 +638,7 @@ export default function SettingsScreen() {
               {t("systemUpdates")}
             </Text>
             <Text style={[styles.settingValue, { color: colors.textSecondary, fontSize: scaledFontSize(14) }]}>
-              Get notified about app updates
+              {t("systemUpdatesDescription")}
             </Text>
           </View>
           <Switch
@@ -564,9 +655,11 @@ export default function SettingsScreen() {
             <Ionicons name="time-outline" size={24} color={colors.primary} />
           </View>
           <View style={styles.settingContent}>
-            <Text style={[styles.settingTitle, { color: colors.text, fontSize: scaledFontSize(16) }]}>Quiet Hours</Text>
+            <Text style={[styles.settingTitle, { color: colors.text, fontSize: scaledFontSize(16) }]}>
+              {t("quietHours")}
+            </Text>
             <Text style={[styles.settingValue, { color: colors.textSecondary, fontSize: scaledFontSize(14) }]}>
-              {settings.quietHoursEnabled ? `${settings.quietHoursStart} - ${settings.quietHoursEnd}` : "Disabled"}
+              {settings.quietHoursEnabled ? `${settings.quietHoursStart} - ${settings.quietHoursEnd}` : t("disabled")}
             </Text>
           </View>
           <View style={styles.settingActions}>
@@ -595,7 +688,7 @@ export default function SettingsScreen() {
             },
           ]}
         >
-          Data Management
+          {t("dataManagement")}
         </Text>
 
         <TouchableOpacity
@@ -607,9 +700,11 @@ export default function SettingsScreen() {
             <Ionicons name="download-outline" size={24} color={colors.primary} />
           </View>
           <View style={styles.settingContent}>
-            <Text style={[styles.settingTitle, { color: colors.text, fontSize: scaledFontSize(16) }]}>Export Data</Text>
+            <Text style={[styles.settingTitle, { color: colors.text, fontSize: scaledFontSize(16) }]}>
+              {t("exportData")}
+            </Text>
             <Text style={[styles.settingValue, { color: colors.textSecondary, fontSize: scaledFontSize(14) }]}>
-              Export your energy consumption data
+              {t("exportDataDescription")}
             </Text>
           </View>
           {isLoading ? (
@@ -628,9 +723,11 @@ export default function SettingsScreen() {
             <Ionicons name="trash-bin-outline" size={24} color={colors.warning} />
           </View>
           <View style={styles.settingContent}>
-            <Text style={[styles.settingTitle, { color: colors.text, fontSize: scaledFontSize(16) }]}>Clear Cache</Text>
+            <Text style={[styles.settingTitle, { color: colors.text, fontSize: scaledFontSize(16) }]}>
+              {t("clearCache")}
+            </Text>
             <Text style={[styles.settingValue, { color: colors.textSecondary, fontSize: scaledFontSize(14) }]}>
-              {cacheSize} of temporary data
+              {cacheSize} {t("ofTemporaryData")}
             </Text>
           </View>
           {isLoading ? (
@@ -650,10 +747,10 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.settingContent}>
             <Text style={[styles.settingTitle, { color: colors.text, fontSize: scaledFontSize(16) }]}>
-              Clear App Data
+              {t("clearAppData")}
             </Text>
             <Text style={[styles.settingValue, { color: colors.textSecondary, fontSize: scaledFontSize(14) }]}>
-              Reset all preferences and cached data
+              {t("clearAppDataDescription")}
             </Text>
           </View>
           {isLoading ? (
@@ -673,7 +770,7 @@ export default function SettingsScreen() {
             },
           ]}
         >
-          About
+          {t("about")}
         </Text>
 
         <TouchableOpacity
@@ -685,10 +782,10 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.settingContent}>
             <Text style={[styles.settingTitle, { color: colors.text, fontSize: scaledFontSize(16) }]}>
-              About SmartMita
+              {t("aboutSmartMita")}
             </Text>
             <Text style={[styles.settingValue, { color: colors.textSecondary, fontSize: scaledFontSize(14) }]}>
-              Version {appVersion}
+              {t("version")} {appVersion}
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color={colors.text} />
@@ -703,10 +800,10 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.settingContent}>
             <Text style={[styles.settingTitle, { color: colors.text, fontSize: scaledFontSize(16) }]}>
-              Privacy Policy
+              {t("privacyPolicy")}
             </Text>
             <Text style={[styles.settingValue, { color: colors.textSecondary, fontSize: scaledFontSize(14) }]}>
-              View our privacy policy
+              {t("viewPrivacyPolicy")}
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color={colors.text} />
@@ -721,10 +818,10 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.settingContent}>
             <Text style={[styles.settingTitle, { color: colors.text, fontSize: scaledFontSize(16) }]}>
-              Help & Support
+              {t("helpAndSupport")}
             </Text>
             <Text style={[styles.settingValue, { color: colors.textSecondary, fontSize: scaledFontSize(14) }]}>
-              Get help with using the app
+              {t("getHelpWithApp")}
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color={colors.text} />
@@ -735,9 +832,11 @@ export default function SettingsScreen() {
             <Ionicons name="share-social-outline" size={24} color={colors.primary} />
           </View>
           <View style={styles.settingContent}>
-            <Text style={[styles.settingTitle, { color: colors.text, fontSize: scaledFontSize(16) }]}>Share App</Text>
+            <Text style={[styles.settingTitle, { color: colors.text, fontSize: scaledFontSize(16) }]}>
+              {t("shareApp")}
+            </Text>
             <Text style={[styles.settingValue, { color: colors.textSecondary, fontSize: scaledFontSize(14) }]}>
-              Share SmartMita with friends
+              {t("shareAppDescription")}
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color={colors.text} />
@@ -762,6 +861,315 @@ export default function SettingsScreen() {
         <View style={{ height: 20 }} />
       </ScrollView>
 
+      {/* Edit Profile Modal */}
+      <Modal
+        visible={isEditProfileModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setIsEditProfileModalVisible(false)}
+      >
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text, fontSize: scaledFontSize(18) }]}>
+                {t("editProfile")}
+              </Text>
+              <TouchableOpacity onPress={() => setIsEditProfileModalVisible(false)}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={[styles.formLabel, { color: colors.text, fontSize: scaledFontSize(16) }]}>{t("name")}</Text>
+              <TextInput
+                style={[
+                  styles.formInput,
+                  {
+                    backgroundColor: colors.background,
+                    color: colors.text,
+                    borderColor: colors.border,
+                    fontSize: scaledFontSize(16),
+                  },
+                ]}
+                value={editedName}
+                onChangeText={setEditedName}
+                placeholder={t("enterName")}
+                placeholderTextColor={colors.textSecondary}
+              />
+            </View>
+
+            <View style={styles.formGroup}>
+              <Text style={[styles.formLabel, { color: colors.text, fontSize: scaledFontSize(16) }]}>
+                {t("emailAddress")}
+              </Text>
+              <TextInput
+                style={[
+                  styles.formInput,
+                  {
+                    backgroundColor: colors.background,
+                    color: colors.text,
+                    borderColor: colors.border,
+                    fontSize: scaledFontSize(16),
+                  },
+                ]}
+                value={editedEmail}
+                onChangeText={setEditedEmail}
+                placeholder={t("enterEmail")}
+                placeholderTextColor={colors.textSecondary}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            </View>
+
+            <View style={styles.modalButtonContainer}>
+              <TouchableOpacity
+                style={[styles.modalButton, { backgroundColor: colors.primary }]}
+                onPress={handleSaveProfile}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <ActivityIndicator size="small" color={colors.white} />
+                ) : (
+                  <Text style={[styles.modalButtonText, { color: colors.white, fontSize: scaledFontSize(16) }]}>
+                    {t("save")}
+                  </Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalButton, { backgroundColor: colors.background }]}
+                onPress={() => setIsEditProfileModalVisible(false)}
+                disabled={isLoading}
+              >
+                <Text style={[styles.modalButtonText, { color: colors.text, fontSize: scaledFontSize(16) }]}>
+                  {t("cancel")}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Language Modal */}
+      <Modal
+        visible={isLanguageModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setIsLanguageModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text, fontSize: scaledFontSize(18) }]}>
+                {t("selectLanguage")}
+              </Text>
+              <TouchableOpacity onPress={() => setIsLanguageModalVisible(false)}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.languageList}>
+              <TouchableOpacity
+                style={[styles.languageItem, locale === "en" && { backgroundColor: `${colors.primary}15` }]}
+                onPress={() => handleLanguageChange("en")}
+              >
+                <Text
+                  style={[
+                    styles.languageName,
+                    { color: locale === "en" ? colors.primary : colors.text, fontSize: scaledFontSize(16) },
+                  ]}
+                >
+                  English
+                </Text>
+                {locale === "en" && <Ionicons name="checkmark" size={20} color={colors.primary} />}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.languageItem, locale === "sw" && { backgroundColor: `${colors.primary}15` }]}
+                onPress={() => handleLanguageChange("sw")}
+              >
+                <Text
+                  style={[
+                    styles.languageName,
+                    { color: locale === "sw" ? colors.primary : colors.text, fontSize: scaledFontSize(16) },
+                  ]}
+                >
+                  Kiswahili
+                </Text>
+                {locale === "sw" && <Ionicons name="checkmark" size={20} color={colors.primary} />}
+              </TouchableOpacity>
+            </ScrollView>
+
+            <TouchableOpacity
+              style={[styles.modalButton, { backgroundColor: colors.primary, marginTop: 16 }]}
+              onPress={() => setIsLanguageModalVisible(false)}
+            >
+              <Text style={[styles.modalButtonText, { color: colors.white, fontSize: scaledFontSize(16) }]}>
+                {t("close")}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Currency Modal */}
+      <Modal
+        visible={isCurrencyModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setIsCurrencyModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text, fontSize: scaledFontSize(18) }]}>
+                {t("selectCurrency")}
+              </Text>
+              <TouchableOpacity onPress={() => setIsCurrencyModalVisible(false)}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.currencyList}>
+              <TouchableOpacity
+                style={[styles.currencyItem, currency === "KES" && { backgroundColor: `${colors.primary}15` }]}
+                onPress={() => handleCurrencyChange("KES")}
+              >
+                <Text
+                  style={[
+                    styles.currencyName,
+                    { color: currency === "KES" ? colors.primary : colors.text, fontSize: scaledFontSize(16) },
+                  ]}
+                >
+                  Kenyan Shilling (KES)
+                </Text>
+                {currency === "KES" && <Ionicons name="checkmark" size={20} color={colors.primary} />}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.currencyItem, currency === "USD" && { backgroundColor: `${colors.primary}15` }]}
+                onPress={() => handleCurrencyChange("USD")}
+              >
+                <Text
+                  style={[
+                    styles.currencyName,
+                    { color: currency === "USD" ? colors.primary : colors.text, fontSize: scaledFontSize(16) },
+                  ]}
+                >
+                  US Dollar (USD)
+                </Text>
+                {currency === "USD" && <Ionicons name="checkmark" size={20} color={colors.primary} />}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.currencyItem, currency === "EUR" && { backgroundColor: `${colors.primary}15` }]}
+                onPress={() => handleCurrencyChange("EUR")}
+              >
+                <Text
+                  style={[
+                    styles.currencyName,
+                    { color: currency === "EUR" ? colors.primary : colors.text, fontSize: scaledFontSize(16) },
+                  ]}
+                >
+                  Euro (EUR)
+                </Text>
+                {currency === "EUR" && <Ionicons name="checkmark" size={20} color={colors.primary} />}
+              </TouchableOpacity>
+            </ScrollView>
+
+            <TouchableOpacity
+              style={[styles.modalButton, { backgroundColor: colors.primary, marginTop: 16 }]}
+              onPress={() => setIsCurrencyModalVisible(false)}
+            >
+              <Text style={[styles.modalButtonText, { color: colors.white, fontSize: scaledFontSize(16) }]}>
+                {t("close")}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Simulation Settings Modal */}
+      <Modal
+        visible={isSimulationSettingsModalVisible}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setIsSimulationSettingsModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text, fontSize: scaledFontSize(18) }]}>
+                Simulation Settings
+              </Text>
+              <TouchableOpacity onPress={() => setIsSimulationSettingsModalVisible(false)}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.sliderContainer}>
+              <Text style={[styles.sliderLabel, { color: colors.text }]}>Update Interval</Text>
+              <Text style={[styles.sliderValue, { color: colors.primary }]}>{updateInterval / 1000} seconds</Text>
+              <Slider
+                style={styles.slider}
+                minimumValue={1000}
+                maximumValue={10000}
+                step={1000}
+                value={updateInterval}
+                onValueChange={setUpdateInterval}
+                minimumTrackTintColor={colors.primary}
+                maximumTrackTintColor={colors.border}
+                thumbTintColor={colors.primary}
+              />
+              <View style={styles.sliderLegend}>
+                <Text style={{ color: colors.textSecondary }}>Faster (1s)</Text>
+                <Text style={{ color: colors.textSecondary }}>Slower (10s)</Text>
+              </View>
+            </View>
+
+            <View style={styles.sliderContainer}>
+              <Text style={[styles.sliderLabel, { color: colors.text }]}>Fluctuation Range</Text>
+              <Text style={[styles.sliderValue, { color: colors.primary }]}>{fluctuationRange}%</Text>
+              <Slider
+                style={styles.slider}
+                minimumValue={1}
+                maximumValue={20}
+                step={1}
+                value={fluctuationRange}
+                onValueChange={setFluctuationRange}
+                minimumTrackTintColor={colors.primary}
+                maximumTrackTintColor={colors.border}
+                thumbTintColor={colors.primary}
+              />
+              <View style={styles.sliderLegend}>
+                <Text style={{ color: colors.textSecondary }}>Subtle (1%)</Text>
+                <Text style={{ color: colors.textSecondary }}>Dramatic (20%)</Text>
+              </View>
+            </View>
+
+            <View style={styles.modalButtonContainer}>
+              <TouchableOpacity
+                style={[styles.modalButton, { backgroundColor: colors.primary }]}
+                onPress={handleSaveSimulationSettings}
+              >
+                <Text style={[styles.modalButtonText, { color: colors.white, fontSize: scaledFontSize(16) }]}>
+                  Save Settings
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalButton, { backgroundColor: colors.background }]}
+                onPress={() => setIsSimulationSettingsModalVisible(false)}
+              >
+                <Text style={[styles.modalButtonText, { color: colors.text, fontSize: scaledFontSize(16) }]}>
+                  Cancel
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Quiet Hours Modal */}
       <Modal
         visible={isQuietHoursModalVisible}
@@ -773,7 +1181,7 @@ export default function SettingsScreen() {
           <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.text, fontSize: scaledFontSize(18) }]}>
-                Set Quiet Hours
+                {t("setQuietHours")}
               </Text>
               <TouchableOpacity onPress={() => setIsQuietHoursModalVisible(false)}>
                 <Ionicons name="close" size={24} color={colors.text} />
@@ -781,13 +1189,13 @@ export default function SettingsScreen() {
             </View>
 
             <Text style={[styles.modalDescription, { color: colors.textSecondary, fontSize: scaledFontSize(14) }]}>
-              Notifications will not be sent during these hours
+              {t("quietHoursDescription")}
             </Text>
 
             <View style={styles.timePickerContainer}>
               <View style={styles.timePickerSection}>
                 <Text style={[styles.timePickerLabel, { color: colors.text, fontSize: scaledFontSize(16) }]}>
-                  Start Time
+                  {t("startTime")}
                 </Text>
                 <TouchableOpacity
                   style={[styles.timePickerButton, { backgroundColor: colors.background }]}
@@ -812,7 +1220,7 @@ export default function SettingsScreen() {
 
               <View style={styles.timePickerSection}>
                 <Text style={[styles.timePickerLabel, { color: colors.text, fontSize: scaledFontSize(16) }]}>
-                  End Time
+                  {t("endTime")}
                 </Text>
                 <TouchableOpacity
                   style={[styles.timePickerButton, { backgroundColor: colors.background }]}
@@ -842,7 +1250,7 @@ export default function SettingsScreen() {
                 onPress={handleSaveQuietHours}
               >
                 <Text style={[styles.modalButtonText, { color: colors.white, fontSize: scaledFontSize(16) }]}>
-                  Save
+                  {t("save")}
                 </Text>
               </TouchableOpacity>
 
@@ -851,7 +1259,7 @@ export default function SettingsScreen() {
                 onPress={() => setIsQuietHoursModalVisible(false)}
               >
                 <Text style={[styles.modalButtonText, { color: colors.text, fontSize: scaledFontSize(16) }]}>
-                  Cancel
+                  {t("cancel")}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -870,7 +1278,7 @@ export default function SettingsScreen() {
           <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.text, fontSize: scaledFontSize(18) }]}>
-                About SmartMita
+                {t("aboutSmartMita")}
               </Text>
               <TouchableOpacity onPress={() => setIsAboutModalVisible(false)}>
                 <Ionicons name="close" size={24} color={colors.text} />
@@ -884,58 +1292,57 @@ export default function SettingsScreen() {
                 </View>
                 <Text style={[styles.appName, { color: colors.text, fontSize: scaledFontSize(20) }]}>SmartMita</Text>
                 <Text style={[styles.appVersion, { color: colors.textSecondary, fontSize: scaledFontSize(14) }]}>
-                  Version {appVersion}
+                  {t("version")} {appVersion}
                 </Text>
               </View>
 
               <Text style={[styles.aboutText, { color: colors.text, fontSize: scaledFontSize(14) }]}>
-                SmartMita is an energy monitoring application designed to help users track, understand, and optimize
-                their energy consumption.
+                {t("aboutDescription")}
               </Text>
 
               <Text style={[styles.aboutText, { color: colors.text, fontSize: scaledFontSize(14) }]}>
-                With SmartMita, you can:
+                {t("withSmartMita")}
               </Text>
 
               <View style={styles.featureList}>
                 <View style={styles.featureItem}>
                   <Ionicons name="checkmark-circle" size={20} color={colors.success} style={styles.featureIcon} />
                   <Text style={[styles.featureText, { color: colors.text, fontSize: scaledFontSize(14) }]}>
-                    Monitor your real-time energy usage
+                    {t("feature1")}
                   </Text>
                 </View>
 
                 <View style={styles.featureItem}>
                   <Ionicons name="checkmark-circle" size={20} color={colors.success} style={styles.featureIcon} />
                   <Text style={[styles.featureText, { color: colors.text, fontSize: scaledFontSize(14) }]}>
-                    Compare your consumption with similar households
+                    {t("feature2")}
                   </Text>
                 </View>
 
                 <View style={styles.featureItem}>
                   <Ionicons name="checkmark-circle" size={20} color={colors.success} style={styles.featureIcon} />
                   <Text style={[styles.featureText, { color: colors.text, fontSize: scaledFontSize(14) }]}>
-                    Receive personalized energy-saving tips
+                    {t("feature3")}
                   </Text>
                 </View>
 
                 <View style={styles.featureItem}>
                   <Ionicons name="checkmark-circle" size={20} color={colors.success} style={styles.featureIcon} />
                   <Text style={[styles.featureText, { color: colors.text, fontSize: scaledFontSize(14) }]}>
-                    Get alerts about unusual energy usage
+                    {t("feature4")}
                   </Text>
                 </View>
 
                 <View style={styles.featureItem}>
                   <Ionicons name="checkmark-circle" size={20} color={colors.success} style={styles.featureIcon} />
                   <Text style={[styles.featureText, { color: colors.text, fontSize: scaledFontSize(14) }]}>
-                    Track your energy costs and potential savings
+                    {t("feature5")}
                   </Text>
                 </View>
               </View>
 
               <Text style={[styles.copyrightText, { color: colors.textSecondary, fontSize: scaledFontSize(12) }]}>
-                © 2023 SmartMita. All rights reserved.
+                © 2025 SmartMita. {t("allRightsReserved")}
               </Text>
             </ScrollView>
 
@@ -943,7 +1350,9 @@ export default function SettingsScreen() {
               style={[styles.modalButton, { backgroundColor: colors.primary, marginTop: 16 }]}
               onPress={() => setIsAboutModalVisible(false)}
             >
-              <Text style={[styles.modalButtonText, { color: colors.white, fontSize: scaledFontSize(16) }]}>Close</Text>
+              <Text style={[styles.modalButtonText, { color: colors.white, fontSize: scaledFontSize(16) }]}>
+                {t("close")}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -960,7 +1369,7 @@ export default function SettingsScreen() {
           <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.text, fontSize: scaledFontSize(18) }]}>
-                Privacy Policy
+                {t("privacyPolicy")}
               </Text>
               <TouchableOpacity onPress={() => setIsPrivacyModalVisible(false)}>
                 <Ionicons name="close" size={24} color={colors.text} />
@@ -969,54 +1378,49 @@ export default function SettingsScreen() {
 
             <ScrollView style={styles.privacyContent}>
               <Text style={[styles.privacyTitle, { color: colors.text, fontSize: scaledFontSize(16) }]}>
-                Introduction
+                {t("introduction")}
               </Text>
               <Text style={[styles.privacyText, { color: colors.text, fontSize: scaledFontSize(14) }]}>
-                SmartMita is committed to protecting your privacy. This Privacy Policy explains how we collect, use, and
-                safeguard your information when you use our mobile application.
+                {t("privacyIntro")}
               </Text>
 
               <Text style={[styles.privacyTitle, { color: colors.text, fontSize: scaledFontSize(16) }]}>
-                Information We Collect
+                {t("informationWeCollect")}
               </Text>
               <Text style={[styles.privacyText, { color: colors.text, fontSize: scaledFontSize(14) }]}>
-                We collect information that you provide directly to us, such as when you create an account, connect to
-                utility providers, or contact us for support.
+                {t("informationWeCollectText")}
               </Text>
 
               <Text style={[styles.privacyTitle, { color: colors.text, fontSize: scaledFontSize(16) }]}>
-                How We Use Your Information
+                {t("howWeUseYourInformation")}
               </Text>
               <Text style={[styles.privacyText, { color: colors.text, fontSize: scaledFontSize(14) }]}>
-                We use the information we collect to provide, maintain, and improve our services, to develop new
-                features, and to protect SmartMita and our users.
+                {t("howWeUseYourInformationText")}
               </Text>
 
               <Text style={[styles.privacyTitle, { color: colors.text, fontSize: scaledFontSize(16) }]}>
-                Data Security
+                {t("dataSecurity")}
               </Text>
               <Text style={[styles.privacyText, { color: colors.text, fontSize: scaledFontSize(14) }]}>
-                We take reasonable measures to help protect your personal information from loss, theft, misuse,
-                unauthorized access, disclosure, alteration, and destruction.
+                {t("dataSecurityText")}
               </Text>
 
               <Text style={[styles.privacyTitle, { color: colors.text, fontSize: scaledFontSize(16) }]}>
-                Changes to This Policy
+                {t("changesToThisPolicy")}
               </Text>
               <Text style={[styles.privacyText, { color: colors.text, fontSize: scaledFontSize(14) }]}>
-                We may update this Privacy Policy from time to time. We will notify you of any changes by posting the
-                new Privacy Policy on this page.
+                {t("changesToThisPolicyText")}
               </Text>
 
               <Text style={[styles.privacyTitle, { color: colors.text, fontSize: scaledFontSize(16) }]}>
-                Contact Us
+                {t("contactUs")}
               </Text>
               <Text style={[styles.privacyText, { color: colors.text, fontSize: scaledFontSize(14) }]}>
-                If you have any questions about this Privacy Policy, please contact us at privacy@smartmita.com.
+                {t("contactUsText")}
               </Text>
 
               <Text style={[styles.privacyDate, { color: colors.textSecondary, fontSize: scaledFontSize(12) }]}>
-                Last updated: March 25, 2023
+                {t("lastUpdated")}: March 25, 2025
               </Text>
             </ScrollView>
 
@@ -1024,7 +1428,9 @@ export default function SettingsScreen() {
               style={[styles.modalButton, { backgroundColor: colors.primary, marginTop: 16 }]}
               onPress={() => setIsPrivacyModalVisible(false)}
             >
-              <Text style={[styles.modalButtonText, { color: colors.white, fontSize: scaledFontSize(16) }]}>Close</Text>
+              <Text style={[styles.modalButtonText, { color: colors.white, fontSize: scaledFontSize(16) }]}>
+                {t("close")}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1041,7 +1447,7 @@ export default function SettingsScreen() {
           <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.text, fontSize: scaledFontSize(18) }]}>
-                Help & Support
+                {t("helpAndSupport")}
               </Text>
               <TouchableOpacity onPress={() => setIsHelpModalVisible(false)}>
                 <Ionicons name="close" size={24} color={colors.text} />
@@ -1050,66 +1456,63 @@ export default function SettingsScreen() {
 
             <ScrollView style={styles.helpContent}>
               <Text style={[styles.helpTitle, { color: colors.text, fontSize: scaledFontSize(16) }]}>
-                Frequently Asked Questions
+                {t("frequentlyAskedQuestions")}
               </Text>
 
               <View style={styles.faqItem}>
                 <Text style={[styles.faqQuestion, { color: colors.text, fontSize: scaledFontSize(14) }]}>
-                  How do I connect my utility provider?
+                  {t("faq1Question")}
                 </Text>
                 <Text style={[styles.faqAnswer, { color: colors.textSecondary, fontSize: scaledFontSize(14) }]}>
-                  Go to the Dashboard, tap on "Connect Utility" and follow the instructions to link your utility
-                  account.
+                  {t("faq1Answer")}
                 </Text>
               </View>
 
               <View style={styles.faqItem}>
                 <Text style={[styles.faqQuestion, { color: colors.text, fontSize: scaledFontSize(14) }]}>
-                  Why am I not receiving notifications?
+                  {t("faq2Question")}
                 </Text>
                 <Text style={[styles.faqAnswer, { color: colors.textSecondary, fontSize: scaledFontSize(14) }]}>
-                  Check your notification settings in the app and ensure notifications are enabled in your device
-                  settings.
+                  {t("faq2Answer")}
                 </Text>
               </View>
 
               <View style={styles.faqItem}>
                 <Text style={[styles.faqQuestion, { color: colors.text, fontSize: scaledFontSize(14) }]}>
-                  How accurate is the energy usage data?
+                  {t("faq3Question")}
                 </Text>
                 <Text style={[styles.faqAnswer, { color: colors.textSecondary, fontSize: scaledFontSize(14) }]}>
-                  The data is as accurate as what your utility provider supplies. We update it in real-time when
-                  available.
+                  {t("faq3Answer")}
                 </Text>
               </View>
 
               <Text style={[styles.helpTitle, { color: colors.text, fontSize: scaledFontSize(16) }]}>
-                Contact Support
+                {t("contactSupport")}
               </Text>
 
               <TouchableOpacity style={[styles.supportButton, { backgroundColor: `${colors.primary}15` }]}>
                 <Ionicons name="mail" size={20} color={colors.primary} style={styles.supportButtonIcon} />
                 <Text style={[styles.supportButtonText, { color: colors.primary, fontSize: scaledFontSize(14) }]}>
-                  Email Support
+                  {t("emailSupport")}
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={[styles.supportButton, { backgroundColor: `${colors.primary}15` }]}>
                 <Ionicons name="chatbubbles" size={20} color={colors.primary} style={styles.supportButtonIcon} />
                 <Text style={[styles.supportButtonText, { color: colors.primary, fontSize: scaledFontSize(14) }]}>
-                  Live Chat
+                  {t("liveChat")}
                 </Text>
               </TouchableOpacity>
 
               <TouchableOpacity style={[styles.supportButton, { backgroundColor: `${colors.primary}15` }]}>
                 <Ionicons name="call" size={20} color={colors.primary} style={styles.supportButtonIcon} />
                 <Text style={[styles.supportButtonText, { color: colors.primary, fontSize: scaledFontSize(14) }]}>
-                  Call Support
+                  {t("callSupport")}
                 </Text>
               </TouchableOpacity>
 
               <Text style={[styles.supportHours, { color: colors.textSecondary, fontSize: scaledFontSize(12) }]}>
-                Support hours: Monday-Friday, 8:00 AM - 6:00 PM EAT
+                {t("supportHours")}: Monday-Friday, 8:00 AM - 6:00 PM EAT
               </Text>
             </ScrollView>
 
@@ -1117,11 +1520,20 @@ export default function SettingsScreen() {
               style={[styles.modalButton, { backgroundColor: colors.primary, marginTop: 16 }]}
               onPress={() => setIsHelpModalVisible(false)}
             >
-              <Text style={[styles.modalButtonText, { color: colors.white, fontSize: scaledFontSize(16) }]}>Close</Text>
+              <Text style={[styles.modalButtonText, { color: colors.white, fontSize: scaledFontSize(16) }]}>
+                {t("close")}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
+
+      {/* Loading Overlay */}
+      {isLoading && (
+        <View style={[styles.loadingOverlay, { backgroundColor: `${colors.background}80` }]}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      )}
     </SafeAreaView>
   )
 }
@@ -1407,6 +1819,79 @@ const styles = StyleSheet.create({
     fontFamily: "Poppins-Regular",
     textAlign: "center",
     marginTop: 16,
+  },
+  formGroup: {
+    marginBottom: 16,
+  },
+  formLabel: {
+    fontFamily: "Poppins-Medium",
+    marginBottom: 8,
+  },
+  formInput: {
+    height: 50,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    fontFamily: "Poppins-Regular",
+  },
+  languageList: {
+    maxHeight: 300,
+  },
+  languageItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  languageName: {
+    fontFamily: "Poppins-Medium",
+  },
+  currencyList: {
+    maxHeight: 300,
+  },
+  currencyItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 16,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  currencyName: {
+    fontFamily: "Poppins-Medium",
+  },
+  loadingOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  sliderContainer: {
+    marginBottom: 24,
+  },
+  sliderLabel: {
+    fontFamily: "Poppins-Medium",
+    fontSize: 16,
+    marginBottom: 8,
+  },
+  sliderValue: {
+    fontFamily: "Poppins-Bold",
+    fontSize: 18,
+    marginBottom: 12,
+  },
+  slider: {
+    width: "100%",
+    height: 40,
+  },
+  sliderLegend: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 4,
   },
 })
 

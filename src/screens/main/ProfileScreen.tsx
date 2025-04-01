@@ -112,7 +112,7 @@ export default function ProfileScreen() {
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.profileHeader, { backgroundColor: colors.primary }]}>
         <Image
-          source={{ uri: user?.profileImage || "https://randomuser.me/api/portraits/men/32.jpg" }}
+          source={{ uri: user?.profileImage || "https://media.istockphoto.com/id/1371797889/vector/young-smiling-man-avatar-3d-vector-people-character-illustration-cartoon-minimal-style-3d.jpg?s=612x612&w=0&k=20&c=WykJb6hyEUv8T9k86g-LG9u980sEwqK8FG1m1tXgnSI=" }}
           style={styles.avatar}
         />
         <Text style={[styles.userName, { color: colors.white, fontSize: scaledFontSize(24) }]}>

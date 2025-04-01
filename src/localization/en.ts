@@ -1,3 +1,4 @@
+// English translations
 export default {
   // General
   appName: "Smartmita",
@@ -7,6 +8,14 @@ export default {
   confirm: "Confirm",
   delete: "Delete",
   edit: "Edit",
+  settings: "Settings",
+  account: "Account",
+  user: "User",
+  close: "Close",
+  enabled: "Enabled",
+  disabled: "Disabled",
+  success: "Success",
+  error: "Error",
 
   // Language selection
   languageSelection: "Select Language",
@@ -50,6 +59,7 @@ export default {
   // Main Tabs
   dashboard: "Dashboard",
   insights: "Insights",
+  analytics: "Analytics",
   benchmark: "Compare",
   education: "Learn",
   profile: "Profile",
@@ -98,6 +108,20 @@ export default {
   logout: "Logout",
   connectedUtilities: "Connected Utilities",
 
+  // App Preferences
+  appPreferences: "App Preferences",
+  currency: "Currency",
+  temperatureUnit: "Temperature Unit",
+  energyUnit: "Energy Unit",
+  selectLanguage: "Select Language",
+  selectCurrency: "Select Currency",
+  temperatureUnitChanged: "Temperature Unit Changed",
+  temperatureUnitChangedMessage: "Temperature unit has been changed to {{unit}}",
+  energyUnitChanged: "Energy Unit Changed",
+  energyUnitChangedMessage: "Energy unit has been changed to {{unit}}",
+  enterName: "Enter your name",
+  enterEmail: "Enter your email",
+
   // Notifications
   notifications: "Notifications",
   markAllRead: "Mark All as Read",
@@ -106,6 +130,20 @@ export default {
   energyAlerts: "Energy Alerts",
   savingsTips: "Savings Tips",
   systemUpdates: "System Updates",
+  pushNotifications: "Push Notifications",
+  quietHours: "Quiet Hours",
+  notificationsDisabled: "Notifications Disabled",
+  enableNotificationsMessage: "Enable notifications to receive important updates",
+  notificationPermissionGranted: "Notification permission granted",
+  permissionDenied: "Permission Denied",
+  notificationPermissionDeniedMessage: "Please enable notifications in your device settings",
+  energyAlertsDescription: "Get notified when your energy usage is unusually high",
+  savingsTipsDescription: "Receive tips on how to reduce your energy consumption",
+  systemUpdatesDescription: "Get notified about app updates and new features",
+  setQuietHours: "Set Quiet Hours",
+  quietHoursDescription: "During quiet hours, you won't receive any notifications",
+  startTime: "Start Time",
+  endTime: "End Time",
 
   // Sample Notifications
   sampleNotification: {
@@ -116,6 +154,90 @@ export default {
     systemTitle: "System Update",
     systemBody: "Smartmita has been updated with new features. Check them out!",
   },
+
+  // Data Management
+  dataManagement: "Data Management",
+  exportData: "Export Data",
+  clearCache: "Clear Cache",
+  clearAppData: "Clear App Data",
+  exportDataDescription: "Export your energy data as a CSV file",
+  exportDataError: "Failed to export data",
+  clearCacheConfirmation: "Are you sure you want to clear the cache?",
+  cacheCleared: "Cache cleared successfully",
+  clearAppDataConfirmation: "Are you sure you want to clear all app data? This action cannot be undone.",
+  clearAppDataDescription: "Delete all app data including settings and preferences",
+  appDataCleared: "App data cleared successfully",
+  ofTemporaryData: "of temporary data",
+
+  // About
+  about: "About",
+  aboutSmartMita: "About SmartMita",
+  version: "Version",
+  privacyPolicy: "Privacy Policy",
+  helpAndSupport: "Help & Support",
+  viewPrivacyPolicy: "View our privacy policy",
+  getHelpWithApp: "Get help with using the app",
+  shareApp: "Share App",
+  shareAppDescription: "Share SmartMita with your friends",
+  shareAppError: "Failed to share app",
+
+  // Profile
+  editProfile: "Edit Profile",
+  name: "Name",
+  emailAddress: "Email Address",
+  nameRequired: "Name is required",
+  validEmailRequired: "A valid email is required",
+  profileUpdated: "Profile updated successfully",
+
+  // Privacy Policy
+  introduction: "Introduction",
+  privacyIntro:
+    "At SmartMita, we take your privacy seriously. This policy describes how we collect, use, and protect your personal information.",
+  informationWeCollect: "Information We Collect",
+  informationWeCollectText:
+    "We collect information about your energy usage, device information, and personal details you provide to us.",
+  howWeUseYourInformation: "How We Use Your Information",
+  howWeUseYourInformationText:
+    "We use your information to provide energy monitoring services, improve our app, and send you notifications.",
+  dataSecurity: "Data Security",
+  dataSecurityText:
+    "We implement appropriate security measures to protect your personal information from unauthorized access or disclosure.",
+  changesToThisPolicy: "Changes to This Policy",
+  changesToThisPolicyText:
+    "We may update this privacy policy from time to time. We will notify you of any changes by posting the new policy on this page.",
+  contactUs: "Contact Us",
+  contactUsText: "If you have any questions about this privacy policy, please contact us at support@smartmita.com.",
+  lastUpdated: "Last Updated",
+
+  // Help & Support
+  frequentlyAskedQuestions: "Frequently Asked Questions",
+  faq1Question: "How accurate is the energy usage data?",
+  faq1Answer:
+    "Our energy usage data is accurate to within 2-3% of your actual usage, based on data from your utility provider.",
+  faq2Question: "How often is the data updated?",
+  faq2Answer:
+    "Data is updated every 15 minutes for real-time monitoring, and daily summaries are provided at midnight.",
+  faq3Question: "Can I connect multiple utility accounts?",
+  faq3Answer: "Yes, you can connect multiple utility accounts from different providers to monitor all your properties.",
+  contactSupport: "Contact Support",
+  emailSupport: "Email Support",
+  liveChat: "Live Chat",
+  callSupport: "Call Support",
+  supportHours: "Support Hours",
+
+  // About Description
+  aboutDescription: "SmartMita is an energy monitoring app that helps you track and reduce your energy consumption.",
+  withSmartMita:
+    "With SmartMita, you can monitor your energy usage in real-time, compare it with similar households, and get personalized recommendations to save energy and money.",
+  feature1: "Real-time energy monitoring",
+  feature2: "Personalized energy-saving tips",
+  feature3: "Neighborhood comparison",
+  feature4: "Device-level energy breakdown",
+  feature5: "Cost analysis and projections",
+  allRightsReserved: "All Rights Reserved",
+
+  // Logout
+  logoutConfirmation: "Are you sure you want to logout?",
 
   // Error messages
   errorOccurred: "An error occurred",

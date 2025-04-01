@@ -32,9 +32,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isVisible = true, onToggle }) 
   const menuItems: MenuItem[] = [
     { key: "dashboard", label: "Dashboard", icon: "grid-outline", screen: "Dashboard" },
     { key: "analytics", label: "Analytics", icon: "bar-chart-outline", screen: "Analytics" },
-    { key: "tips", label: "Energy Tips", icon: "bulb-outline", screen: "EnergyTips" },
+    { key: "profile", label: "Profile", icon: "person-outline", screen: "Profile" },
     { key: "notifications", label: "Notifications", icon: "notifications-outline", screen: "Notifications" },
     { key: "settings", label: "Settings", icon: "settings-outline", screen: "Settings" },
+
+    
   ]
 
   const isActive = (screenName: string) => {

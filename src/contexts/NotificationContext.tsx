@@ -485,8 +485,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
           ...(Platform.OS === "android" && { channelId }),
         },
         trigger: {
-          hour,
-          minute,
+          type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+          seconds: (hour * 3600 + minute * 60) - (new Date().getHours() * 3600 + new Date().getMinutes() * 60),
           repeats: true,
         },
       })

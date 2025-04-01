@@ -46,7 +46,7 @@ export default function EducationScreen() {
       id: "1",
       title: "Understanding Your Energy Bill",
       description: "Learn how to read and understand your energy bill to identify opportunities for savings.",
-      image: "/placeholder.svg",
+      image: "@/assets/images/electricalbill.png",
       readTime: "5 min",
     },
     {
